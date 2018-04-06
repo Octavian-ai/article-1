@@ -85,6 +85,8 @@ class Supervisor(object):
 		self.output_dir = output_dir
 		
 		self.plot = Ploty(title='Training progress', x='Time', y="Score", output_path=output_dir)
+		self.hyperplot = Ploty(title='Hyper parameters', x='Time', y="Value", output_path=output_dir)
+
 
 	def save(self):
 		p = f"{self.output_dir}/population"
@@ -172,21 +174,16 @@ class Supervisor(object):
 		return worker.count > self.macro_step * self.micro_step
 	
 	def printStatus(self, epoch):
-		gs = self.score
-		
-		# gr1 = lambda i: i.results.get('val_acc', -1)
-		# gr2 = lambda i: i.results.get('train_acc', -1)
 
 		measures = {
-			"score": gs,
-			"validation": gr1,
-			"train": gr2
+			"score": self.score,
+			# "validation": lambda i: i.results.get('val_acc', -1),
+			# "train": lambda i: i.results.get('train_acc', -1)
 		}
 		
 		for i, worker in enumerate(self.workers):
-			self.plot.add_result(epoch, gs(worker),  str(i)+"_score", "s", '-')
-			# self.plot.add_result(epoch, gr1(worker), str(i)+"_val",   "v", ':')
-			# self.plot.add_result(epoch, gr2(worker), str(i)+'_train', "o", ':' )
+			for key, fn in measures.items():
+				self.plot.add_result(epoch, fn(worker),  str(i)+key, "s", '-')
 			
 			
 		self.plot.render()
@@ -199,17 +196,20 @@ class Supervisor(object):
 				best = max(vs)
 				worst = min(vs)
 
+				self.hyperplot.add_result(epoch, best, f"{key}_max")
+				self.hyperplot.add_result(epoch, worst, f"{key}_min")
+
+
 				print(f'{{"metric": "{key}_max", "value": {best} }}')
 				print(f'{{"metric": "{key}_min", "value": {worst} }}')
 
-		print(f'{{"metric": "n_workers", "value": {len(self.workers)} }}')
+		self.hyperplot.add_result(epoch, len(self.workers), "n_workers")
 
-
-		best_worker = max(self.workers, key=gs)
+		best_worker = max(self.workers, key=self.score)
 
 		for key, val in best_worker.params.items():
 			if isinstance(val.value, int) or isinstance(val.value, float):
-				print(f'{{"metric": "best_param_{key}", "value": {val.value} }}')
+				self.hyperplot.add_result(epoch, val.value, f"{key}_best")
 
 
 

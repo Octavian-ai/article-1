@@ -97,13 +97,11 @@ def MetaEstimatorWorker(model_fn, estimator_params, train_input_fn, eval_input_f
       
     @property
     def params(self):
-      with self.graph.as_default():
+      var_names = self.estimator.get_variable_names()
+      vals = {k:self.estimator.get_variable_value(k) for k in var_names}
+      self._params["vars"] = VariableParam(vals)
 
-        var_names = self.estimator.get_variable_names()
-        vals = {k:self.estimator.get_variable_value(k) for k in var_names}
-        self._params["vars"] = VariableParam(vals)
-
-        return self._params;
+      return self._params;
       
     @params.setter
     def params(self, value):
