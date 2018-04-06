@@ -52,7 +52,7 @@ class GraphData(object):
 			tf.logging.info(f"Data loaded, got {len(data)} rows, {len(self.person_ids)} person nodes, {len(self.product_ids)} product nodes")
 			
 			scores = [i["y"] for i in raw_data]
-			tf.logging.info("Histogram", np.histogram(scores))
+			tf.logging.info(f"Histogram: {np.histogram(scores)}")
 
 			self.data = data
 
@@ -68,10 +68,8 @@ class GraphData(object):
 		return len(self.data)
 
 	def gen_input_fn(self):
-
 		def gen():
 			return (i for i in self.data)
-
 
 		d = tf.data.Dataset.from_generator(
 			gen,
@@ -79,7 +77,9 @@ class GraphData(object):
 			((tf.TensorShape([]), tf.TensorShape([])), tf.TensorShape([]))
 		)
 
-		d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
+		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
+		d = d.shuffle(len(self), reshuffle_each_iteration=True)
+		d = d.repeat(self.args.data_passes_per_epoch)
 		d = d.batch(self.batch_size)
 
 		return d
