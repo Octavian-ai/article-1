@@ -62,8 +62,8 @@ class Supervisor(object):
 					output_dir,
 					score,
 					n_workers=10, 
-					micro_step=1, 
-					macro_step=50, 
+					micro_step=40, 
+					macro_step=40, 
 					save_freq=20
 					):
 
@@ -97,7 +97,7 @@ class Supervisor(object):
 			pass
 
 		for worker in self.workers:
-			worker.save(f"{p}/worker_{index.id}.pkl")
+			worker.save(f"{p}/worker_{worker.id}.pkl")
 
 		tf.logging.info(f"Saved workers")
 

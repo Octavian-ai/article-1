@@ -42,7 +42,7 @@ def train(args):
 
 	s = Supervisor(EstimatorWorker, param_spec, args.output_dir, score)
 
-	s.run()
+	s.run(args.epochs)
 
 
 if __name__ == '__main__':
@@ -50,6 +50,8 @@ if __name__ == '__main__':
 	parser.add_argument('--database', 			type=str, default="hosted")
 	parser.add_argument('--output-dir', 		type=str, default="./output-pbt/")
 	parser.add_argument('--batch-size', 		type=int, default=32)
+	parser.add_argument('--epochs', 			type=int, default=30)
+
 	parser.add_argument('--data-passes-per-epoch',type=int, default=2)
 	args = parser.parse_args()
 
