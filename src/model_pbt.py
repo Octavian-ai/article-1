@@ -2,12 +2,12 @@ import tensorflow as tf
 import numpy as np
 
 
-from pbt_worker import gen_scaffold
+from .estimator_worker import gen_scaffold
 
 def model_fn(features, labels, mode, params):
 
 	# Retrieve the embedded values for the given node ids
-	person_hidden = tf.get_variable("person",   [params["n_person"],  params["embedding_width"].value])
+	person_hidden  = tf.get_variable("person",  [params["n_person"],  params["embedding_width"].value])
 	product_hidden = tf.get_variable("product", [params["n_product"], params["embedding_width"].value])
 
 	person_emb  = tf.nn.embedding_lookup(person_hidden,  features[0])

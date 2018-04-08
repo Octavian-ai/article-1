@@ -10,7 +10,6 @@ class GraphData(object):
 
 	def __init__(self, args, person_ids, product_ids, test=False):
 		self.args = args
-		self.batch_size = args.batch_size
 		
 		self.query = """
 			MATCH p=
@@ -80,7 +79,7 @@ class GraphData(object):
 		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
 		d = d.shuffle(len(self), reshuffle_each_iteration=True)
 		d = d.repeat(self.args.data_passes_per_epoch)
-		d = d.batch(self.batch_size)
+		d = d.batch(self.args.batch_size)
 
 		return d
 

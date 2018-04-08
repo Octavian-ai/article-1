@@ -5,17 +5,29 @@ import pickle
 import pathlib
 from glob import glob
 import uuid
+import os
 
-from ploty import Ploty
+from .ploty import Ploty
 
 
 class Worker(object):
-	"""Runs a PBT experiment"""
-	def __init__(self):
+	"""Runs a PBT experiment
+
+	Always provide a parameterless init so the Supervisor can spawn workers as needed
+
+	"""
+	def __init__(self, init_params, hyperparam_spec):
 		self.count = 0
 		self.id = uuid.uuid1()
 		self.results = {}
-	
+		self.init_params = init_params
+		self.gen_params(hyperparam_spec)
+
+	def gen_params(self, hyperparam_spec):
+		self.params = {
+			k: v() for k, v in hyperparam_spec.items()
+		}
+
 	@property
 	def params(self):
 		pass
@@ -42,13 +54,16 @@ class Worker(object):
 		pass
 
 	def save(self, path):
+		# os.makedirs(path, exist_ok=True)
 		file = open(path, 'wb')
 		pickle.dump(self, file)
 
 	@classmethod
-	def load(cls, path):
+	def load(cls, path, init_params):
 		file = open(path, 'rb')
-		return pickle.load(file)
+		w = pickle.load(file)
+		w.init_params = init_params
+		return w
 
 
 	 
@@ -57,15 +72,15 @@ class Worker(object):
 class Supervisor(object):
 	"""Implementation of Population Based Training. Supervisor manages and optimises the experiments"""
 	def __init__(self, 
-					SubjectClass, 
-					paramSpec, 
-					output_dir,
-					score,
-					n_workers=10, 
-					micro_step=40, 
-					macro_step=40, 
-					save_freq=20
-					):
+				 SubjectClass, 
+				 init_params,
+				 hyperparam_spec, 
+				 output_dir,
+				 score,
+				 n_workers=10, 
+				 micro_step=5, 
+				 macro_step=40, 
+				 save_freq=20):
 
 		self.score = score
 		self.macro_step = macro_step
@@ -77,7 +92,7 @@ class Supervisor(object):
 		else:
 			self.n_workers = n_workers
 
-		self.paramSpec = paramSpec
+		self.hyperparam_spec = hyperparam_spec
 		self.workers = []
 		self.save_freq = save_freq
 		self.save_counter = save_freq
@@ -109,7 +124,7 @@ class Supervisor(object):
 		for i in glob(pop_dir):
 			tf.logging.info(f"Loading {i}")
 			try:
-				w = self.SubjectClass.load(i)
+				w = self.SubjectClass.load(i, self.init_params)
 				self.workers.append(w)
 				tf.logging.info(f"Loaded {w.id} {self.score(w)}")
 
@@ -139,13 +154,8 @@ class Supervisor(object):
 
 		elif delta > 0:	
 			for i in range(delta):
-				additional = self.SubjectClass()
-				
-				additional.params = {
-						k: v() for k, v in self.paramSpec.items()
-				}
+				additional = self.SubjectClass(self.init_params, self.hyperparam_spec)
 				additional.count = random.randint(0,round(self.macro_step*0.2))
-
 				self.workers.append(additional)
 
 		
@@ -198,7 +208,6 @@ class Supervisor(object):
 
 				self.hyperplot.add_result(epoch, best, f"{key}_max")
 				self.hyperplot.add_result(epoch, worst, f"{key}_min")
-
 
 				print(f'{{"metric": "{key}_max", "value": {best} }}')
 				print(f'{{"metric": "{key}_min", "value": {worst} }}')
