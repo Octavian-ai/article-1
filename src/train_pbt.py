@@ -15,7 +15,8 @@ pbt_param_spec = {
 	"lr": LRParam,
 	"embedding_width": lambda: IntParam(pow(10, random.uniform(0,2.5)), 1, 1000),
 	"vars": VariableParam,
-	"heritage": Heritage
+	"heritage": Heritage,
+	"model_id": ModelId
 }
 
 def gen_worker_init_params(args):
@@ -34,7 +35,8 @@ def gen_worker_init_params(args):
 		"model_fn": model_fn, 
 		"estimator_params": estimator_params, 
 		"train_input_fn": data_train.input_fn, 
-		"eval_input_fn": data_test.input_fn
+		"eval_input_fn": data_test.input_fn,
+		"model_dir": args.output_dir + "checkpoint/"
 	}
 
 	return worker_init_params
@@ -47,6 +49,8 @@ def get_args():
 	parser.add_argument('--batch-size', 		type=int, default=32)
 	parser.add_argument('--epochs', 			type=int, default=30)
 	parser.add_argument('--data-passes-per-epoch',type=int, default=2)
+	parser.add_argument('--shuffle-batch',		type=bool, default=True)
+
 	return parser.parse_args()
 
 

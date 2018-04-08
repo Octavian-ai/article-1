@@ -77,7 +77,7 @@ class GraphData(object):
 		)
 
 		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
-		d = d.shuffle(len(self), reshuffle_each_iteration=True)
+		d = d.shuffle(len(self), reshuffle_each_iteration=self.args.shuffle_batch)
 		d = d.repeat(self.args.data_passes_per_epoch)
 		d = d.batch(self.args.batch_size)
 

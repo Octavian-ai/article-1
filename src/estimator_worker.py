@@ -83,9 +83,18 @@ class EstimatorWorker(Worker):
 
 
   def setup_estimator(self):
+
+    if self._params["model_id"].value["warm_start_from"] is not None:
+      warm_start = self.init_params["model_dir"] + self._params["model_id"].value["warm_start_from"]
+    else:
+      warm_start = None
+
     self.estimator = tf.estimator.Estimator(
       model_fn=self.init_params["model_fn"],
-      params={**self.init_params["estimator_params"], **self._params}
+      model_dir=self.init_params["model_dir"] + self._params["model_id"].value["cur"],
+      config=None,
+      params={**self.init_params["estimator_params"], **self._params},
+      warm_start_from=warm_start
     )
 
     
@@ -123,7 +132,7 @@ class EstimatorWorker(Worker):
   # Hooks for Pickle
   def __getstate__(self):
     return {
-      "_params":   self.params,
+      "_params":  self.params,
       "count":    self.count,
       "results":  self.results,
       "id":       self.id

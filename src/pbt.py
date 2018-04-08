@@ -55,13 +55,13 @@ class Worker(object):
 
 	def save(self, path):
 		# os.makedirs(path, exist_ok=True)
-		file = open(path, 'wb')
-		pickle.dump(self, file)
+		with open(path, 'wb') as file:
+			pickle.dump(self, file)
 
 	@classmethod
 	def load(cls, path, init_params):
-		file = open(path, 'rb')
-		w = pickle.load(file)
+		with open(path, 'rb') as file:
+			w = pickle.load(file)
 		w.init_params = init_params
 		return w
 

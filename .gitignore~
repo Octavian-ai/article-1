@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+output/
+output-pbt/
+output_test/
+
 # C extensions
 *.so
 

@@ -5,6 +5,7 @@ import tensorflow as tf
 import math
 import string
 import copy
+import uuid
 
 class GeneticParam(object):
   """Represents a parameter that can be sampled, copied, compared and mutated"""
@@ -90,6 +91,21 @@ class Heritage(GeneticParam):
     
     def mutate(self):
         return Heritage(self.v)
+
+""" Gives a fresh model folder name every mutation """
+class ModelId(GeneticParam):
+  
+  def vend(self):
+      return str(uuid.uuid1())
+  
+  def __init__(self, v={}):
+      self.v = {
+        "cur": self.vend(), 
+        "warm_start_from": v.get("cur", None)
+      }
+  
+  def mutate(self):
+      return ModelId(self.v)
     
 class VariableParam(InitableParam):
     
