@@ -82,9 +82,15 @@ class Supervisor(object):
 				 macro_step=40, 
 				 save_freq=20):
 
+		self.SubjectClass = SubjectClass
+		self.init_params = init_params
+		self.hyperparam_spec = hyperparam_spec
+		self.output_dir = output_dir
 		self.score = score
 		self.macro_step = macro_step
 		self.micro_step = micro_step
+		self.save_freq = save_freq
+		self.save_counter = save_freq
 
 		# Function or Integer supported
 		if isinstance(n_workers, int) or isinstance(n_workers, float):
@@ -92,13 +98,7 @@ class Supervisor(object):
 		else:
 			self.n_workers = n_workers
 
-		self.hyperparam_spec = hyperparam_spec
 		self.workers = []
-		self.save_freq = save_freq
-		self.save_counter = save_freq
-		self.SubjectClass = SubjectClass
-		self.output_dir = output_dir
-		
 		self.plot = Ploty(title='Training progress', x='Time', y="Score", output_path=output_dir)
 		self.hyperplot = Ploty(title='Hyper parameters', x='Time', y="Value", output_path=output_dir)
 
@@ -183,7 +183,7 @@ class Supervisor(object):
 	def ready(self, worker):
 		return worker.count > self.macro_step * self.micro_step
 	
-	def printStatus(self, epoch):
+	def print_status(self, epoch):
 
 		measures = {
 			"score": self.score,
@@ -222,18 +222,23 @@ class Supervisor(object):
 
 
 
-	def paramsEqual(self, p1, p2):
+	# TODO: Make params into a virtual dictionary (and wrap .value for the caller)
+	def params_equal(self, p1, p2):
 		for k, v in p1.items():
 			if v != p2[k]:
 				return False
 		return True
-	
 
 	def step(self, step_index):
 		for i in self.workers:
-			i.step(self.micro_step)
-			i.eval()
-			tf.logging.info(f"{i.id} eval {self.score(i)}")
+			try:
+				i.step(self.micro_step)
+				i.eval()
+				tf.logging.info(f"{i.id} eval {self.score(i)}")
+			except Exception:
+				self.workers.remove(i)
+				continue
+
 			
 			if self.ready(i):
 				i.resetCount()
@@ -241,10 +246,15 @@ class Supervisor(object):
 				params = i.params
 				params2 = self.exploit(i)
 				
-				if not self.paramsEqual(params, params2):
+				if not self.params_equal(params, params2):
 					tf.logging.info(f"Replace with exploit-explore {i.id}")
 					i.params = self.explore(params2)
-					i.eval()
+
+					try:
+						i.eval()
+					except Exception:
+						self.workers.remove(i)
+						continue
 
 		self.save_counter -= 1;
 		if self.save_counter <= 0:
@@ -257,5 +267,5 @@ class Supervisor(object):
 		for i in range(epochs):
 			self.scale_workers(i)
 			self.step(i)
-			self.printStatus(i)
+			self.print_status(i)
 			

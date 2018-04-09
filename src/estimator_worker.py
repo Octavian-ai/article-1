@@ -28,8 +28,7 @@ def resize_and_load(var, val, sess):
 
 def gen_scaffold(params):
   def init_fn(scaffold, session):
-    # self.sess.run(tf.global_variables_initializer())
-    # self.sess.run(tf.local_variables_initializer())
+    tf.logging.info("Running Scaffold init_fn")
 
     vs = params["vars"].value
 
@@ -40,7 +39,7 @@ def gen_scaffold(params):
           val = vs[var.name]
           resize_and_load(var, val, session)
 
-  return tf.train.Scaffold(init_fn=init_fn)
+  return tf.train.Scaffold(init_fn=lambda scaffold, session: True)
 
 
 
@@ -68,64 +67,65 @@ class EstimatorWorker(Worker):
   
   def __init__(self, init_params, hyperparam_spec):
     self.estimator = None
+    self.trained = False
     super().__init__(init_params, hyperparam_spec)
-    # self._results = {}
-
-    # def cb(accuracy):
-    #   self._results["accuracy"] = accuracy
-
-    # eval_hooks = [
-    #   MetricHook(None, cb)
-    # ]
-
-    # self.train_spec = tf.estimator.TrainSpec(input_fn=train_input_fn, hooks=eval_hooks)
-    # self.eval_spec = tf.estimator.EvalSpec(input_fn=eval_input_fn, throttle_secs=10)
 
 
   def setup_estimator(self):
+
 
     if self._params["model_id"].value["warm_start_from"] is not None:
       warm_start = self.init_params["model_dir"] + self._params["model_id"].value["warm_start_from"]
     else:
       warm_start = None
 
+    model_dir = self.init_params["model_dir"] + self._params["model_id"].value["cur"]
+
+    # model_dir = self.init_params["model_dir"] + str(uuid.uuid1())
+
     self.estimator = tf.estimator.Estimator(
       model_fn=self.init_params["model_fn"],
-      model_dir=self.init_params["model_dir"] + self._params["model_id"].value["cur"],
+      model_dir=model_dir,
       config=None,
       params={**self.init_params["estimator_params"], **self._params},
       warm_start_from=warm_start
     )
 
-    
-  @property
-  def params(self):
-    if self.estimator is None:
-      self.setup_estimator()
+    self.trained = False
 
+  def ensure_warm(self):
+    # We need to warm up the estimator
+    if not self.trained or self.estimator == None:
+      self.do_step(1)
+
+
+  def extract_vars(self):
+    self.ensure_warm()
     var_names = self.estimator.get_variable_names()
     vals = {k:self.estimator.get_variable_value(k) for k in var_names}
     self._params["vars"] = VariableParam(vals)
-
+    
+  @property
+  def params(self):    
     return self._params;
     
   @params.setter
   def params(self, value):
     self._params = value;
     self.setup_estimator()
-    tf.logging.info(f"Setup {self.id}")
-
-    # Maybe thanks to scaffold nothing needed here, it'll pick up changes on next run
-    # ????????
-    # self.setup()
     
   def do_step(self, steps):
+    # We lazily initialise the estimator as during unpickling we may not have all the params
     if self.estimator is None:
       self.setup_estimator()
 
     self.estimator.train(self.init_params["train_input_fn"], steps=steps)
     
   def do_eval(self):
+    # self.ensure_warm()
+    if self.estimator is None:
+      self.setup_estimator()
+      
     return self.estimator.evaluate(self.init_params["eval_input_fn"])
 
 
@@ -143,5 +143,7 @@ class EstimatorWorker(Worker):
     self.count    = state.get("count", 0)
     self.results  = state.get("results", {})
     self._params   = state.get("_params", {})
+
     self.estimator = None
+    self.trained = False
 

@@ -14,7 +14,7 @@ from .estimator_worker import *
 pbt_param_spec = {
 	"lr": LRParam,
 	"embedding_width": lambda: IntParam(pow(10, random.uniform(0,2.5)), 1, 1000),
-	"vars": VariableParam,
+	# "vars": VariableParam,
 	"heritage": Heritage,
 	"model_id": ModelId
 }
@@ -45,9 +45,9 @@ def gen_worker_init_params(args):
 def get_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--database', 			type=str, default="hosted")
-	parser.add_argument('--output-dir', 		type=str, default="./output-pbt/")
+	parser.add_argument('--output-dir', 		type=str, default="./output/")
 	parser.add_argument('--batch-size', 		type=int, default=32)
-	parser.add_argument('--epochs', 			type=int, default=30)
+	parser.add_argument('--epochs', 			type=int, default=4000)
 	parser.add_argument('--data-passes-per-epoch',type=int, default=2)
 	parser.add_argument('--shuffle-batch',		type=bool, default=True)
 
