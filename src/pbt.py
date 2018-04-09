@@ -79,7 +79,7 @@ class Supervisor(object):
 				 score,
 				 n_workers=10, 
 				 micro_step=5, 
-				 macro_step=40, 
+				 macro_step=10, 
 				 save_freq=20):
 
 		self.SubjectClass = SubjectClass

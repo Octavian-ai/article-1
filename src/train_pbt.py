@@ -59,7 +59,7 @@ def train(args):
 	worker_init_params = gen_worker_init_params(args)
 	
 	def score(worker):
-		return worker.results["accuracy"]
+		return worker.results.get("accuracy", 0)
 
 	s = Supervisor(EstimatorWorker, worker_init_params, pbt_param_spec, args.output_dir, score)
 
