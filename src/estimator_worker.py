@@ -119,14 +119,14 @@ class EstimatorWorker(Worker):
     if self.estimator is None:
       self.setup_estimator()
 
-    self.estimator.train(self.init_params["train_input_fn"], steps=steps)
+    self.estimator.train(self.init_params["train_input_fn"](self._params), steps=steps)
     
   def do_eval(self):
     # self.ensure_warm()
     if self.estimator is None:
       self.setup_estimator()
       
-    return self.estimator.evaluate(self.init_params["eval_input_fn"])
+    return self.estimator.evaluate(self.init_params["eval_input_fn"](self._params))
 
 
   # Hooks for Pickle

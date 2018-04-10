@@ -4,6 +4,9 @@ import numpy as np
 
 from .estimator_worker import gen_scaffold
 
+def score_to_class(tensor, buckets=2):
+	return tf.cast(tf.round(tensor * (buckets-1)), tf.int32)
+
 def model_fn(features, labels, mode, params):
 
 	# Retrieve the embedded values for the given node ids
@@ -28,9 +31,14 @@ def model_fn(features, labels, mode, params):
 	# Loss across the batch
 	loss = tf.losses.mean_squared_error(output, labels)
 
+	classes = 2
+
 	# Let's see the accuracy over time
 	eval_metric_ops = {
-		"accuracy": tf.metrics.accuracy(output, labels)
+		"accuracy": tf.metrics.accuracy(labels, output),
+		"accuracy_per_class": tf.metrics.mean_per_class_accuracy(
+			score_to_class(labels, classes),
+			score_to_class(output, classes), classes)
 	}
 
 	# Train the network to minimise the loss using Adam

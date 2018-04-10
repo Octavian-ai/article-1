@@ -1,3 +1,0 @@
-#!/bin/env bash
-
-python3 -m src.train -output_dir ./output_solo/

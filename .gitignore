@@ -3,9 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
+*~
 .DS_Store
 
+output*/
 output/
 output-pbt/
 output_test/

@@ -66,7 +66,7 @@ class GraphData(object):
 	def __len__(self):
 		return len(self.data)
 
-	def gen_input_fn(self):
+	def gen_input_fn(self, batch_size=None):
 		def gen():
 			return (i for i in self.data)
 
@@ -79,7 +79,11 @@ class GraphData(object):
 		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
 		d = d.shuffle(len(self), reshuffle_each_iteration=self.args.shuffle_batch)
 		d = d.repeat(self.args.data_passes_per_epoch)
-		d = d.batch(self.args.batch_size)
+
+		if batch_size is None:
+			batch_size = self.args.batch_size
+
+		d = d.batch(batch_size)
 
 		return d
 
@@ -87,7 +91,7 @@ class GraphData(object):
 	@property
 	def input_fn(self):
 		return lambda: self.gen_input_fn()
-	
+
 
 
 

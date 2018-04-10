@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 
+def score_to_class(tensor, buckets=2):
+	return tf.cast(tf.round(tensor * (buckets-1)), tf.int32)
 
 def model_fn(features, labels, mode, params):
 
@@ -26,9 +28,14 @@ def model_fn(features, labels, mode, params):
 	# Loss across the batch
 	loss = tf.losses.mean_squared_error(output, labels)
 
+	classes = 2
+
 	# Let's see the accuracy over time
 	eval_metric_ops = {
-		"accuracy": tf.metrics.accuracy(output, labels)
+		"accuracy": tf.metrics.accuracy(output, labels),
+		"accuracy_per_class": tf.metrics.mean_per_class_accuracy(
+			score_to_class(labels, classes),
+			score_to_class(output, classes), classes)
 	}
 
 	# tf.summary.scalar("accuracy", eval_metric_ops["accuracy"][1])

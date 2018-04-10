@@ -3,6 +3,7 @@ import tensorflow as tf
 import random
 import pickle
 import pathlib
+import traceback
 from glob import glob
 import uuid
 import os
@@ -98,6 +99,7 @@ class Supervisor(object):
 		else:
 			self.n_workers = n_workers
 
+		self.fail_count = 0
 		self.workers = []
 		self.plot = Ploty(title='Training progress', x='Time', y="Score", output_path=output_dir)
 		self.hyperplot = Ploty(title='Hyper parameters', x='Time', y="Value", output_path=output_dir)
@@ -135,7 +137,7 @@ class Supervisor(object):
 
 
 
-	def scale_workers(self, step_index):
+	def scale_workers(self, epoch):
 
 		stack = list(self.workers)
 		random.shuffle(stack) # Tie-break randomly
@@ -144,7 +146,7 @@ class Supervisor(object):
 		n20 = round(len(stack)*0.2)
 		bottom20 = stack[:n20]
 
-		delta = self.n_workers(step_index) - len(self.workers)
+		delta = self.n_workers(epoch) - len(self.workers)
 
 		if delta != 0:
 			tf.logging.info(f"Resizing worker pool by {delta}")
@@ -206,12 +208,8 @@ class Supervisor(object):
 			if len(vs) > 0:
 				best = max(vs)
 				worst = min(vs)
-
 				self.hyperplot.add_result(epoch, best, f"{key}_max")
 				self.hyperplot.add_result(epoch, worst, f"{key}_min")
-
-				print(f'{{"metric": "{key}_max", "value": {best} }}')
-				print(f'{{"metric": "{key}_min", "value": {worst} }}')
 
 		self.hyperplot.add_result(epoch, len(self.workers), "n_workers")
 
@@ -230,14 +228,21 @@ class Supervisor(object):
 				return False
 		return True
 
-	def step(self, step_index):
+	def _remove_worker(self, worker, epoch):
+		self.workers.remove(worker)
+		self.fail_count += 1
+		self.hyperplot.add_result(epoch, self.fail_count, "failed_workers")
+
+
+	def step(self, epoch):
 		for i in self.workers:
 			try:
 				i.step(self.micro_step)
 				i.eval()
 				tf.logging.info(f"{i.id} eval {self.score(i)}")
 			except Exception:
-				self.workers.remove(i)
+				traceback.print_exc()
+				self._remove_worker(i, epoch)
 				continue
 
 			
@@ -254,7 +259,8 @@ class Supervisor(object):
 					try:
 						i.eval()
 					except Exception:
-						self.workers.remove(i)
+						traceback.print_exc()
+						self._remove_worker(i, epoch)
 						continue
 
 		self.save_counter -= 1;

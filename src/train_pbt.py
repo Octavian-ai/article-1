@@ -15,6 +15,7 @@ from .estimator_worker import *
 pbt_param_spec = {
 	"lr": LRParam,
 	"embedding_width": lambda: IntParam(pow(10, random.uniform(0,2.5)), 1, 1000),
+	"batch_size": lambda: IntParam(pow(10, random.uniform(0,3)), 1, 1000),
 	# "vars": VariableParam,
 	"heritage": Heritage,
 	"model_id": ModelId
@@ -35,8 +36,8 @@ def gen_worker_init_params(args):
 	worker_init_params = {
 		"model_fn": model_fn, 
 		"estimator_params": estimator_params, 
-		"train_input_fn": data_train.input_fn, 
-		"eval_input_fn": data_test.input_fn,
+		"train_input_fn": lambda args: lambda: data_train.gen_input_fn(args["batch_size"].value), 
+		"eval_input_fn": lambda args: lambda: data_test.gen_input_fn(args["batch_size"].value),
 		"model_dir": args.output_dir + "checkpoint/"
 	}
 
@@ -64,7 +65,7 @@ def train(args):
 
 
 if __name__ == '__main__':
-	tf.logging.set_verbosity('INFO')
+	# tf.logging.set_verbosity('INFO')
 	args = get_args()
 	train(args)
 

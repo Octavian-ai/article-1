@@ -52,7 +52,8 @@ def train(args):
 	result = estimator.evaluate(
 		input_fn=data_test.input_fn
 	)
-
+	
+	print(result)
 	print(f"Accuracy: {round(result['accuracy']*100)}%")
 
 
