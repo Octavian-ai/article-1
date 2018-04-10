@@ -150,7 +150,8 @@ class Supervisor(object):
 			tf.logging.info(f"Resizing worker pool by {delta}")
 
 		if delta < 0:
-			self.workers = self.workers[min(-delta, len(self.workers)):]
+			ws = sorted(self.workers, key=self.score)
+			self.workers = ws[min(-delta, len(self.workers)):]
 
 		elif delta > 0:	
 			for i in range(delta):

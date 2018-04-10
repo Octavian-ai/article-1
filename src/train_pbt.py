@@ -5,6 +5,7 @@ import argparse
 import tensorflow as tf
 import numpy as np
 
+from .args import get_args
 from .data import GraphData
 from .model_pbt import model_fn
 
@@ -42,17 +43,6 @@ def gen_worker_init_params(args):
 	return worker_init_params
 
 
-def get_args():
-	parser = argparse.ArgumentParser()
-	parser.add_argument('--database', 			type=str, default="hosted")
-	parser.add_argument('--output-dir', 		type=str, default="./output/")
-	parser.add_argument('--batch-size', 		type=int, default=32)
-	parser.add_argument('--epochs', 			type=int, default=4000)
-	parser.add_argument('--data-passes-per-epoch',type=int, default=2)
-	parser.add_argument('--shuffle-batch',		type=bool, default=True)
-
-	return parser.parse_args()
-
 
 def train(args):
 
@@ -61,7 +51,14 @@ def train(args):
 	def score(worker):
 		return worker.results.get("accuracy", 0)
 
-	s = Supervisor(EstimatorWorker, worker_init_params, pbt_param_spec, args.output_dir, score)
+	s = Supervisor(
+		EstimatorWorker, 
+		worker_init_params, 
+		pbt_param_spec, 
+		args.output_dir, 
+		score,
+		micro_step=300,
+		macro_step=3)
 
 	s.run(args.epochs)
 
