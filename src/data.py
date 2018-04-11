@@ -1,12 +1,23 @@
 
 import tensorflow as tf
 import numpy as np
+import os.path
 
 import json
 from neo4j.v1 import GraphDatabase, Driver
 
 
 class GraphData(object):
+
+	def _uuid_to_index(self, uuid, db):
+		if uuid not in db:
+			db[uuid] = len(db)
+
+		return db[uuid]
+
+	def _get_index(self, row, noun):
+		return self._uuid_to_index(row[noun+"_id"],  self.ids[noun])
+
 
 	def __init__(self, args, person_ids, product_ids, test=False):
 		self.args = args
@@ -18,7 +29,12 @@ class GraphData(object):
 				(review:REVIEW {dataset_name:{dataset_name}, test:{test}}) 
 					-[:OF]-> 
 				(product:PRODUCT)
-			RETURN person.id as person_id, product.id as product_id, review.score as y
+			RETURN 
+				person.id as person_id, 
+				product.id as product_id, 
+				person.style_preference as person_style,
+				product.style as product_style,
+				review.score as y
 		"""
 
 		self.query_params = {
@@ -36,24 +52,73 @@ class GraphData(object):
 		self.person_ids = person_ids
 		self.product_ids = product_ids
 
-		def uuid_to_index(uuid, db):
-			if uuid not in db:
-				db[uuid] = len(db)
-
-			return db[uuid]
+		# Let's start reducing copy-pasted logic
+		self.ids = {
+			"person": person_ids,
+			"product": product_ids
+		}
 
 
 		with driver.session() as session:
-			raw_data = session.run(self.query, **self.query_params).data()
-			data = [ ((uuid_to_index(i["person_id"],  self.person_ids), 
-				       uuid_to_index(i["product_id"], self.product_ids)), i["y"]) for i in raw_data]
+			self.raw_data = session.run(self.query, **self.query_params).data()
+			data = [ (
+						(self._get_index(i, "person"), self._get_index(i, "product")), 
+					  	(i["y"])
+					 ) for i in self.raw_data ]
 
 			tf.logging.info(f"Data loaded, got {len(data)} rows, {len(self.person_ids)} person nodes, {len(self.product_ids)} product nodes")
 			
-			scores = [i["y"] for i in raw_data]
+			scores = [i["y"] for i in self.raw_data]
 			tf.logging.info(f"Histogram: {np.histogram(scores)}")
 
 			self.data = data
+
+	def write_labels(self, output_dir, prefix):
+
+		nouns = ["product", "person"]
+		header = "Class\tId\n"
+
+		def format_row(index, db, noun):
+			if index in db:
+				style = db[index][noun+"_style"]
+				idd = db[index][noun+"_id"]
+
+				# One higher than we'd otherwise output
+				cls = len(style)
+
+				for idx, val in enumerate(style):
+					if val == 1.0:
+						cls = idx
+						break
+
+				return f"{cls}\t{idd}\n"
+			else:
+				return "\t\n"
+
+
+		for noun in nouns:
+			ordered = {}
+
+			for i in self.raw_data:
+				ordered[self._get_index(i, noun)] = i
+				
+			with open(os.path.join(output_dir, f"{prefix}_{noun}_labels.tsv"), 'w') as label_file:
+				label_file.write(header)
+
+				for i in range(len(ordered)):
+					label_file.write(format_row(i, ordered, noun))
+
+
+		# Easier than the TF many lines of setup
+		with open(os.path.join(output_dir, "projector_config.pbtext"), 'w') as config_file:
+			config_file.write("embeddings {")
+
+			for noun in nouns:
+				config_file.write(f" tensor_name: '{noun}'")
+				config_file.write(f"  metadata_path: './{prefix}_{noun}_labels.tsv'")
+
+			config_file.write("}")
+
 
 	@property
 	def n_person(self):

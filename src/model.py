@@ -6,6 +6,8 @@ def score_to_class(tensor, buckets=2):
 
 def model_fn(features, labels, mode, params):
 
+	review_score = labels
+
 	# Retrieve the embedded values for the given node ids
 	person_hidden = tf.get_variable("person",   [params["n_person"],  params["embedding_width"]])
 	product_hidden = tf.get_variable("product", [params["n_product"], params["embedding_width"]])
@@ -23,20 +25,22 @@ def model_fn(features, labels, mode, params):
 	output = tf.layers.dense(inputs=m, units=(1), activation=tf.nn.sigmoid)
 
 	# Make the size (?, 1) to fit the output of the tf.layers api
-	labels = tf.expand_dims(labels, -1)
+	review_score = tf.expand_dims(review_score, -1)
 
 	# Loss across the batch
-	loss = tf.losses.mean_squared_error(output, labels)
+	loss = tf.losses.mean_squared_error(output, review_score)
 
 	classes = 2
 
 	# Let's see the accuracy over time
 	eval_metric_ops = {
-		"accuracy": tf.metrics.accuracy(output, labels),
+		"accuracy": tf.metrics.accuracy(output, review_score),
 		"accuracy_per_class": tf.metrics.mean_per_class_accuracy(
-			score_to_class(labels, classes),
+			score_to_class(review_score, classes),
 			score_to_class(output, classes), classes)
 	}
+
+	
 
 	# tf.summary.scalar("accuracy", eval_metric_ops["accuracy"][1])
 
