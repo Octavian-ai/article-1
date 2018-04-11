@@ -14,7 +14,7 @@ class GeneticParam(object):
     """Initialise with randomly sampled value"""
     pass
   
-  def mutate(self):
+  def mutate(self, heat):
     """Return copy of this param with mutated value"""
     pass
   
@@ -34,7 +34,7 @@ class FixedParam(GeneticParam):
   def __init__(self,v=None):
     self.v = v
     
-  def mutate(self):
+  def mutate(self, heat):
     return self
 
   def __str__(self):
@@ -51,8 +51,8 @@ class InitableParam(GeneticParam):
 
     
 class MulParam(InitableParam):
-  def mutate(self):
-    return MulParam(self.v * random.uniform(0.8, 1.2))
+  def mutate(self, heat):
+    return MulParam(self.v * random.uniform(0.8/heat, 1.2*heat))
 
 def MulParamOf(v):
   return lambda: MulParam(v)
@@ -69,8 +69,12 @@ class IntParam(InitableParam):
     def value(self):
         return round(min(max(self.min, self.v), self.max))
     
-    def mutate(self):
-        return IntParam(self.v * random.uniform(0.8, 1.2), self.min, self.max)
+    def mutate(self, heat):
+        return IntParam(self.v * random.uniform(0.8/heat, 1.2*heat), self.min, self.max)
+
+def IntParamOf(v, min=1, max=1000):
+  return lambda: IntParam(v, min, max)
+
 
 
 class LRParam(GeneticParam):
@@ -78,9 +82,11 @@ class LRParam(GeneticParam):
     sample = pow(10, random.uniform(-4, 2))
     self.v = v if v is not None else sample
     
-  def mutate(self):
-    return LRParam(self.v * pow(10, random.uniform(-0.5,0.5)))
+  def mutate(self, heat):
+    return LRParam(self.v * pow(10, heat*random.uniform(-0.5,0.5)))
   
+
+
 class Heritage(GeneticParam):
     
     def vend(self):
@@ -89,8 +95,10 @@ class Heritage(GeneticParam):
     def __init__(self, v=""):
         self.v = v + self.vend()
     
-    def mutate(self):
+    def mutate(self, heat):
         return Heritage(self.v)
+
+
 
 """ Gives a fresh model folder name every mutation """
 class ModelId(GeneticParam):
@@ -104,9 +112,11 @@ class ModelId(GeneticParam):
         "warm_start_from": v.get("cur", None)
       }
   
-  def mutate(self):
+  def mutate(self, heat):
       return ModelId(self.v)
     
+
+
 class VariableParam(InitableParam):
     
   def __eq__(self, other):
@@ -120,12 +130,13 @@ class VariableParam(InitableParam):
     
     return True
   
-  def mutate(self):
+  def mutate(self, heat):
     return VariableParam(copy.copy(self.v))
   
   def __str__(self):
     return ""
   
+
 
 class OptimizerParam(GeneticParam):
   def __init__(self, v=None):
@@ -137,10 +148,10 @@ class OptimizerParam(GeneticParam):
     ]
     self.v = v if v is not None else random.choice(self.choices)
     
-  def mutate(self):
+  def mutate(self, heat):
     o = self.value
     
-    if random.random() > 0.8:
+    if random.random() > 1 - 0.2*heat:
       o = random.choice(self.choices)
     
     return OptimizerParam(o)

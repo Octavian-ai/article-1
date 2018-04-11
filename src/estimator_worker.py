@@ -83,11 +83,15 @@ class EstimatorWorker(Worker):
 
     # model_dir = self.init_params["model_dir"] + str(uuid.uuid1())
 
+    estimator_params = {**self.init_params["estimator_params"]}
+    for key, value in self._params.items():
+      estimator_params[key] = value.value
+
     self.estimator = tf.estimator.Estimator(
       model_fn=self.init_params["model_fn"],
       model_dir=model_dir,
       config=None,
-      params={**self.init_params["estimator_params"], **self._params},
+      params=estimator_params,
       warm_start_from=warm_start
     )
 

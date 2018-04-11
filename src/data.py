@@ -2,7 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import os.path
-
+import random
 import json
 from neo4j.v1 import GraphDatabase, Driver
 
@@ -71,6 +71,9 @@ class GraphData(object):
 			scores = [i["y"] for i in self.raw_data]
 			tf.logging.info(f"Histogram: {np.histogram(scores)}")
 
+			random.seed(123)
+			random.shuffle(data)
+
 			self.data = data
 
 	def write_labels(self, output_dir, prefix):
@@ -131,9 +134,13 @@ class GraphData(object):
 	def __len__(self):
 		return len(self.data)
 
-	def gen_input_fn(self, batch_size=None):
+	def gen_input_fn(self, batch_size=None, limit=None):
+
+		if limit is None:
+			limit = len(self.data)
+
 		def gen():
-			return (i for i in self.data)
+			return (i for i in self.data[:limit])
 
 		d = tf.data.Dataset.from_generator(
 			gen,

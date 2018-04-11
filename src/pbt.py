@@ -7,8 +7,12 @@ import traceback
 from glob import glob
 import uuid
 import os
+import collections
 
 from .ploty import Ploty
+
+
+FP = collections.namedtuple('FallbackParam', ['value'])
 
 
 class Worker(object):
@@ -37,7 +41,7 @@ class Worker(object):
 	def params(self, params):
 		pass
 		
-	def resetCount(self):
+	def reset_count(self):
 		self.count = 0
 	
 	def step(self, steps):
@@ -53,6 +57,9 @@ class Worker(object):
 	
 	def do_eval(self):
 		pass
+
+	def is_ready(self):
+		self.count > self.params.get("micro_step", FP(1)).value * self.params.get("macro_step", FP(5)).value
 
 	def save(self, path):
 		# os.makedirs(path, exist_ok=True)
@@ -79,8 +86,6 @@ class Supervisor(object):
 				 output_dir,
 				 score,
 				 n_workers=10, 
-				 micro_step=5, 
-				 macro_step=10, 
 				 save_freq=20):
 
 		self.SubjectClass = SubjectClass
@@ -88,8 +93,6 @@ class Supervisor(object):
 		self.hyperparam_spec = hyperparam_spec
 		self.output_dir = output_dir
 		self.score = score
-		self.macro_step = macro_step
-		self.micro_step = micro_step
 		self.save_freq = save_freq
 		self.save_counter = save_freq
 
@@ -158,7 +161,9 @@ class Supervisor(object):
 		elif delta > 0:	
 			for i in range(delta):
 				additional = self.SubjectClass(self.init_params, self.hyperparam_spec)
-				additional.count = random.randint(0,round(self.macro_step*0.2))
+				additional.count = random.randint(0,
+					round(additional.params.get('macro_step', FP(5)).value * 0.2)
+				)
 				self.workers.append(additional)
 
 		
@@ -180,11 +185,8 @@ class Supervisor(object):
 	
 	def explore(self, params):
 		return {
-				k:v.mutate() for k, v in params.items()
+				k:v.mutate(params.get("heat", FP(1.0)).value) for k, v in params.items()
 		}
-	
-	def ready(self, worker):
-		return worker.count > self.macro_step * self.micro_step
 	
 	def print_status(self, epoch):
 
@@ -237,7 +239,9 @@ class Supervisor(object):
 	def step(self, epoch):
 		for i in self.workers:
 			try:
-				i.step(self.micro_step)
+				steps = i.params.get("micro_step", FP(1)).value
+				tf.logging.info(f"{i.id} train {steps}")
+				i.step(steps)
 				i.eval()
 				tf.logging.info(f"{i.id} eval {self.score(i)}")
 			except Exception:
@@ -246,8 +250,8 @@ class Supervisor(object):
 				continue
 
 			
-			if self.ready(i):
-				i.resetCount()
+			if i.is_ready():
+				i.reset_count()
 				
 				params = i.params
 				params2 = self.exploit(i)
@@ -262,6 +266,9 @@ class Supervisor(object):
 						traceback.print_exc()
 						self._remove_worker(i, epoch)
 						continue
+
+		if len(self.workers) == 0:
+			raise Exception("All workers failed, your model has bugs")
 
 		self.save_counter -= 1;
 		if self.save_counter <= 0:
