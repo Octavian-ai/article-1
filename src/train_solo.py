@@ -49,15 +49,15 @@ def train(args):
 		})
 
 
-	max_steps = round(
-		float(args.data_passes_per_epoch * len(data_train) * args.epochs) / args.batch_size
-	)
-
-	
-
 	if args.mode == 'all' or args.mode == 'train':
+
+		max_steps = round(
+			float(args.data_passes_per_epoch * len(data_train) * args.epochs) / args.batch_size
+		)
+		tf.logging.info(f"Training for max_steps {max_steps}")
+		
 		train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn, max_steps=max_steps)
-		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn, throttle_secs=10)
+		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn, throttle_secs=30)
 
 		tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 

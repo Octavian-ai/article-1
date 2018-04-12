@@ -6,8 +6,8 @@ def get_args():
 	parser.add_argument('--database', 			type=str, default="hosted")
 	parser.add_argument('--output-dir', 		type=str, default="./output/")
 	
-	parser.add_argument('--epochs', 			type=int, default=4000)
-	parser.add_argument('--data-passes-per-epoch',type=int, default=2)
+	parser.add_argument('--epochs', 			type=int, default=20)
+	parser.add_argument('--data-passes-per-epoch',type=int, default=20)
 	parser.add_argument('--shuffle-batch',		type=bool, default=True)
 
 	parser.add_argument('--batch-size', 		type=int, default=32)

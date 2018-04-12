@@ -21,7 +21,7 @@ def model_fn(features, labels, mode, params):
 	# Model
 	# --------------------------------------------------------------------------
 	
-	person_hidden = tf.get_variable("person",   [params["n_person"],  params["embedding_width"]])
+	person_hidden  = tf.get_variable("person",  [params["n_person"],  params["embedding_width"]])
 	product_hidden = tf.get_variable("product", [params["n_product"], params["embedding_width"]])
 
 	person_emb  = tf.nn.embedding_lookup(person_hidden,  person_id)
