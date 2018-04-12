@@ -14,5 +14,7 @@ def get_args():
 	parser.add_argument('--embedding-width', 	type=int, default=82)
 	parser.add_argument('--lr',					type=float, default=0.103557887)
 
+	parser.add_argument('--mode', 				type=str, choices=['all', 'train', 'predict', 'evaluate'], default='all')
+
 
 	return parser.parse_args()

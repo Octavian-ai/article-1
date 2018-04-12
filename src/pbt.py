@@ -8,11 +8,15 @@ from glob import glob
 import uuid
 import os
 import collections
+import logging
 
 from .ploty import Ploty
 
+logger = logging.getLogger('pbt')
+logger.setLevel(logging.INFO)
 
 FP = collections.namedtuple('FallbackParam', ['value'])
+
 
 
 class Worker(object):
@@ -22,7 +26,8 @@ class Worker(object):
 
 	"""
 	def __init__(self, init_params, hyperparam_spec):
-		self.count = 0
+		self.current_count = 0
+		self.total_count = 0
 		self.id = uuid.uuid1()
 		self.results = {}
 		self.init_params = init_params
@@ -42,10 +47,11 @@ class Worker(object):
 		pass
 		
 	def reset_count(self):
-		self.count = 0
+		self.current_count = 0
 	
 	def step(self, steps):
-		self.count += steps
+		self.current_count += steps
+		self.total_count += steps
 		self.do_step(steps)
 	
 	def do_step(self, steps):
@@ -59,7 +65,17 @@ class Worker(object):
 		pass
 
 	def is_ready(self):
-		self.count > self.params.get("micro_step", FP(1)).value * self.params.get("macro_step", FP(5)).value
+		mi = self.params.get("micro_step", FP(1)).value
+		ma = self.params.get("macro_step", FP(5)).value
+
+		return self.current_count > mi * ms
+
+	@property
+	def macro_steps(self):
+		mi = self.params.get("micro_step", FP(1)).value
+		ma = self.params.get("macro_step", FP(5)).value
+		return self.total_count / mi / ma
+	
 
 	def save(self, path):
 		# os.makedirs(path, exist_ok=True)
@@ -78,7 +94,35 @@ class Worker(object):
 		
 		
 class Supervisor(object):
-	"""Implementation of Population Based Training. Supervisor manages and optimises the experiments"""
+	"""
+		Implementation of Population Based Training. 
+		Supervisor manages and optimises the experiments
+
+
+		# Notes on 'PBT theory'
+
+		Ways to create a new worker:
+		 - Fresh worker (random initialisation)
+		 - Mutate from top performer (asexual reproduction)
+		 - Breed partners (sexual reproduction)
+
+		Reproduction introduces random mutations into properties
+		If mutation perturbation samples from a long tailed distribution, 
+		then there is a chance of black swan discoveries. This is important.
+		This makes reproduction and fresh worker spawning statistically 
+		equivalent at the limit.
+
+		Events to trigger creating new worker:
+		 - Fewer workers in pool than desired size
+
+		Events to trigger culling a worker:
+		 - Crashes
+		 - More workers in pool than desired size
+		 - Worker poor performer after macro cycle
+
+
+
+	"""
 	def __init__(self, 
 				 SubjectClass, 
 				 init_params,
@@ -86,7 +130,8 @@ class Supervisor(object):
 				 output_dir,
 				 score,
 				 n_workers=10, 
-				 save_freq=20):
+				 save_freq=20,
+				 ):
 
 		self.SubjectClass = SubjectClass
 		self.init_params = init_params
@@ -95,6 +140,7 @@ class Supervisor(object):
 		self.score = score
 		self.save_freq = save_freq
 		self.save_counter = save_freq
+		self.heat = 1.0
 
 		# Function or Integer supported
 		if isinstance(n_workers, int) or isinstance(n_workers, float):
@@ -116,27 +162,29 @@ class Supervisor(object):
 		except:
 			pass
 
+		# TODO: delete workers
+
 		for worker in self.workers:
 			worker.save(f"{p}/worker_{worker.id}.pkl")
 
-		tf.logging.info(f"Saved workers")
+		logger.info(f"Saved workers")
 
 	def load(self, input_dir):
 		pop_dir = f"{input_dir}/population/worker_*.pkl"
-		tf.logging.info(f"Trying to load workers from {pop_dir}")
+		logger.info(f"Trying to load workers from {pop_dir}")
 
 		self.workers = []
 		for i in glob(pop_dir):
-			tf.logging.info(f"Loading {i}")
+			logger.info(f"Loading {i}")
 			try:
 				w = self.SubjectClass.load(i, self.init_params)
 				self.workers.append(w)
-				tf.logging.info(f"Loaded {w.id} {self.score(w)}")
+				logger.info(f"Loaded {w.id} {self.score(w)}")
 
 			except Exception as e:
 				print(e)
 
-		tf.logging.info(f"Loaded workers")
+		logger.info(f"Loaded workers")
 
 
 
@@ -152,19 +200,17 @@ class Supervisor(object):
 		delta = self.n_workers(epoch) - len(self.workers)
 
 		if delta != 0:
-			tf.logging.info(f"Resizing worker pool by {delta}")
+			logger.info(f"Resizing worker pool by {delta}")
 
 		if delta < 0:
-			ws = sorted(self.workers, key=self.score)
-			self.workers = ws[min(-delta, len(self.workers)):]
+			readies = [i for i in bottom20 if i.is_ready()]
+			sort(readies, key=self.score)
+			for i in readies[:min(-delta, len(readies))]:
+				self.workers.remove(i)
 
 		elif delta > 0:	
 			for i in range(delta):
-				additional = self.SubjectClass(self.init_params, self.hyperparam_spec)
-				additional.count = random.randint(0,
-					round(additional.params.get('macro_step', FP(5)).value * 0.2)
-				)
-				self.workers.append(additional)
+				self.add_random_worker()
 
 		
 	def exploit(self, worker):
@@ -185,14 +231,39 @@ class Supervisor(object):
 	
 	def explore(self, params):
 		return {
-				k:v.mutate(params.get("heat", FP(1.0)).value) for k, v in params.items()
+				k:v.mutate(self.heat) for k, v in params.items()
 		}
-	
+
+	def add_random_worker(self):
+		additional = self.SubjectClass(self.init_params, self.hyperparam_spec)
+		additional.count = random.randint(0,
+			round(additional.params.get('macro_step', FP(5)).value * 0.2)
+		)
+		self.workers.append(additional)
+
+	def breed_worker(self, worker):
+
+		score = self.score(worker)
+		stack = sorted(stack, key=lambda i: abs(score-self.score(i)))
+		partner = random.choice(stack[:5])
+
+		ap = worker.params
+		bp = partner.params
+
+		params = {
+			k: v.breed(ap[k], bp[k], self.heat) for k, v in self.hyperparam_spec.items()
+		}
+
+		child = self.SubjectClass(self.init_params, self.hyperparam_spec)
+		child.params = params
+		self.workers.append(child)
+		return child
+
 	def print_status(self, epoch):
 
 		measures = {
 			"score": self.score,
-			# "validation": lambda i: i.results.get('val_acc', -1),
+			"validation": lambda i: i.results.get('accuracy', -1),
 			# "train": lambda i: i.results.get('train_acc', -1)
 		}
 		
@@ -240,16 +311,25 @@ class Supervisor(object):
 		for i in self.workers:
 			try:
 				steps = i.params.get("micro_step", FP(1)).value
-				tf.logging.info(f"{i.id} train {steps}")
+				logger.info(f"{i.id} train {steps}")
 				i.step(steps)
 				i.eval()
-				tf.logging.info(f"{i.id} eval {self.score(i)}")
+				logger.info(f"{i.id} eval {self.score(i)}")
 			except Exception:
 				traceback.print_exc()
 				self._remove_worker(i, epoch)
 				continue
 
-			
+		if len(self.workers) == 0:
+			raise Exception("All workers failed, your model has bugs")
+
+		self.save_counter -= 1;
+		if self.save_counter <= 0:
+			self.save()
+			self.save_counter = self.save_freq
+
+	def explore(self, epoch):
+		for i in self.workers:
 			if i.is_ready():
 				i.reset_count()
 				
@@ -257,7 +337,7 @@ class Supervisor(object):
 				params2 = self.exploit(i)
 				
 				if not self.params_equal(params, params2):
-					tf.logging.info(f"Replace with exploit-explore {i.id}")
+					logger.info(f"{i.id} Replace with exploit-explore")
 					i.params = self.explore(params2)
 
 					try:
@@ -267,19 +347,26 @@ class Supervisor(object):
 						self._remove_worker(i, epoch)
 						continue
 
-		if len(self.workers) == 0:
-			raise Exception("All workers failed, your model has bugs")
+	def breed(self, epoch):
+		for i in self.workers:
+			if i.is_ready():
 
-		self.save_counter -= 1;
-		if self.save_counter <= 0:
-			self.save()
-			self.save_counter = self.save_freq
-					
-			
+				newbie = self.breed_worker(i)
+
+				try:
+					newbie.eval()
+
+				except Exception:
+					traceback.print_exc()
+					self._remove_worker(newbie, epoch)
+					continue
+
+
 		
 	def run(self, epochs=1000):
 		for i in range(epochs):
 			self.scale_workers(i)
 			self.step(i)
+			self.explore(i)
 			self.print_status(i)
 			

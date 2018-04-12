@@ -34,7 +34,7 @@ class GraphData(object):
 				product.id as product_id, 
 				person.style_preference as person_style,
 				product.style as product_style,
-				review.score as y
+				review.score as review_score
 		"""
 
 		self.query_params = {
@@ -62,13 +62,21 @@ class GraphData(object):
 		with driver.session() as session:
 			self.raw_data = session.run(self.query, **self.query_params).data()
 			data = [ (
-						(self._get_index(i, "person"), self._get_index(i, "product")), 
-					  	(i["y"])
+						( 
+							self._get_index(i, "person"), 
+							self._get_index(i, "product"),
+							i["person_style"],
+					  		i["product_style"],
+					  		i["review_score"], # For prediction debugging convenience. Not used for training
+						), 
+					  	( 
+					  		i["review_score"]
+					  	)
 					 ) for i in self.raw_data ]
 
 			tf.logging.info(f"Data loaded, got {len(data)} rows, {len(self.person_ids)} person nodes, {len(self.product_ids)} product nodes")
 			
-			scores = [i["y"] for i in self.raw_data]
+			scores = [i["review_score"] for i in self.raw_data]
 			tf.logging.info(f"Histogram: {np.histogram(scores)}")
 
 			random.seed(123)
@@ -144,8 +152,22 @@ class GraphData(object):
 
 		d = tf.data.Dataset.from_generator(
 			gen,
-			((tf.int32, tf.int32), tf.float32),
-			((tf.TensorShape([]), tf.TensorShape([])), tf.TensorShape([]))
+			(
+				(
+					tf.int32, tf.int32, 
+					tf.float32, tf.float32, 
+					tf.float32
+				), 
+				(tf.float32)
+			),
+			(
+				( 
+					tf.TensorShape([]), tf.TensorShape([]), 
+					tf.TensorShape([6]), tf.TensorShape([6]), 
+					tf.TensorShape([]) 
+				), 
+				( tf.TensorShape([]) )
+			)
 		)
 
 		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))

@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-python3 -m src.train_solo --output-dir ./output_solo/ --epochs 200
+python3 -m src.train_solo --output-dir ./output_solo/ --epochs 200 --mode all

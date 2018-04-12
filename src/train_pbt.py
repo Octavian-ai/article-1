@@ -23,9 +23,8 @@ pbt_param_spec = {
 	# "vars": VariableParam,
 	"heritage": Heritage,
 	"model_id": ModelId,
-	"macro_step": IntParamOf(5),
-	"micro_step": lambda: IntParam(random.randint(3, 300)),
-	"heat": lambda: MulParam(random.uniform(0.3,5)),
+	"macro_step": FixedParamOf(5),
+	"micro_step": FixedParamOf(1000),
 	"n_train": lambda: IntParam(random.randint(3, 10000), 1, 10000),
 	"n_val": lambda: IntParam(random.randint(3, 1000), 1, 1000),
 }

@@ -3,6 +3,7 @@ import traceback
 import argparse
 import pickle
 import os.path
+import csv
 
 import tensorflow as tf
 import numpy as np
@@ -27,10 +28,10 @@ def train(args):
 	product_ids = {}
 
 	data_train = GraphData(args, person_ids, product_ids)
-	data_test  = GraphData(args, person_ids, product_ids, test=True)
+	data_eval  = GraphData(args, person_ids, product_ids, test=True)
 
 	data_train.write_labels(model_dir, "train")
-	# data_test.write_labels(model_dir, "test")
+	# data_eval.write_labels(model_dir, "test")
 
 
 	# --------------------------------------------------------------------------
@@ -52,20 +53,37 @@ def train(args):
 		float(args.data_passes_per_epoch * len(data_train) * args.epochs) / args.batch_size
 	)
 
-	# Let's train!
-	train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn, max_steps=max_steps)
-	eval_spec = tf.estimator.EvalSpec(input_fn=data_test.input_fn, throttle_secs=10)
+	
 
-	tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
+	if args.mode == 'all' or args.mode == 'train':
+		train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn, max_steps=max_steps)
+		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn, throttle_secs=10)
 
-	result = estimator.evaluate(
-		input_fn=data_test.input_fn
-	)
+		tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
+
+	
+
+	if args.mode == 'all' or args.mode == 'evaluate':
+		result = estimator.evaluate(
+			input_fn=data_eval.input_fn
+		)
+		print(result)
 
 
-	print(result)
-	print(f"Accuracy: {round(result['accuracy']*100)}%")
 
+	if args.mode == 'all' or args.mode == 'predict':
+		preds = estimator.predict(data_eval.input_fn)
+		with open(os.path.join(args.output_dir, "predictions.csv"), 'w') as file:
+
+			writer = None
+
+			for i in preds:
+				# Let's peek to get the keys
+				if writer is None:
+					writer = csv.DictWriter(file, fieldnames=i.keys())
+					writer.writeheader()
+
+				writer.writerow(i)
 
 
 if __name__ == '__main__':
