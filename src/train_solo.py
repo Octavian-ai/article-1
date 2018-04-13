@@ -45,7 +45,9 @@ def train(args):
 			"lr": args.lr,
 			"n_person": len(person_ids),
 			"n_product": len(product_ids),
-			"embedding_width": args.embedding_width
+			"embedding_width": args.embedding_width,
+			"n_cluster": args.n_cluster,
+			"cluster_factor": args.cluster_factor,
 		})
 
 
@@ -55,7 +57,7 @@ def train(args):
 			float(args.data_passes_per_epoch * len(data_train) * args.epochs) / args.batch_size
 		)
 		tf.logging.info(f"Training for max_steps {max_steps}")
-		
+
 		train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn, max_steps=max_steps)
 		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn, throttle_secs=30)
 
