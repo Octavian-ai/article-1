@@ -19,7 +19,7 @@ class GeneticParam(object):
     pass
   
   def __eq__(self, other):
-    return self.v == other.v
+    return self.value == other.value
   
   def __str__(self):
     return str(self.value)
@@ -49,28 +49,29 @@ class InitableParam(GeneticParam):
         self.v = v
     
 
-    
+
 class MulParam(InitableParam):
+  def __init__(self, v, min, max):
+    self.v = v
+    self.max = max
+    self.min = min
+
+  @property
+  def value(self):
+    return min(max(self.v, self.min), self.max)
+
   def mutate(self, heat):
-    return MulParam(self.v * random.uniform(0.8/heat, 1.2*heat))
+    return MulParam(self.value * random.uniform(0.8/heat, 1.2*heat) + random.gauss(0.0, heat*0.1), self.min, self.max)
 
-def MulParamOf(v):
-  return lambda: MulParam(v)
+def MulParamOf(v, min=-10000, max=10000):
+  return lambda: MulParam(v, min, max)
 
 
 
-class IntParam(InitableParam):
-    def __init__(self, v=None, min=1, max=1000):
-      self.v = v
-      self.max = max
-      self.min = min
-  
+class IntParam(MulParam):
     @property
     def value(self):
-        return round(min(max(self.min, self.v), self.max))
-    
-    def mutate(self, heat):
-        return IntParam(self.v * random.uniform(0.8/heat, 1.2*heat), self.min, self.max)
+        return round(min(max(self.v, self.min), self.max))
 
 def IntParamOf(v, min=1, max=1000):
   return lambda: IntParam(v, min, max)

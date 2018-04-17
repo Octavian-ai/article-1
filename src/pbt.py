@@ -7,11 +7,14 @@ import traceback
 from glob import glob
 import uuid
 import os
+import os.path
 import collections
 import logging
+import sys
 
 from .ploty import Ploty
 
+logging.basicConfig()
 logger = logging.getLogger('pbt')
 logger.setLevel(logging.INFO)
 
@@ -68,7 +71,12 @@ class Worker(object):
 		mi = self.params.get("micro_step", FP(1)).value
 		ma = self.params.get("macro_step", FP(5)).value
 
-		return self.current_count > mi * ms
+		return self.current_count > mi * ma
+
+	def explore(self, heat):
+		return {
+			k:v.mutate(heat) for k, v in self.params.items()
+		}
 
 	@property
 	def macro_steps(self):
@@ -150,12 +158,13 @@ class Supervisor(object):
 
 		self.fail_count = 0
 		self.workers = []
-		self.plot = Ploty(title='Training progress', x='Time', y="Score", output_path=output_dir)
-		self.hyperplot = Ploty(title='Hyper parameters', x='Time', y="Value", output_path=output_dir)
+		self.plot_workers  = Ploty(title='Worker performance', x='Time', y="Score", output_path=output_dir)
+		self.plot_progress = Ploty(title='Training progress', x='Time', y="Value", output_path=output_dir)
+		self.plot_hyper    = Ploty(title='Hyper parameters', x='Time', y="Value", output_path=output_dir)
 
 
 	def save(self):
-		p = f"{self.output_dir}/population"
+		p = os.path.join(self.output_dir, "population")
 
 		try:
 			pathlib.Path(p).mkdir(parents=True, exist_ok=True) 
@@ -165,27 +174,23 @@ class Supervisor(object):
 		# TODO: delete workers
 
 		for worker in self.workers:
-			worker.save(f"{p}/worker_{worker.id}.pkl")
+			worker.save(os.path.join(p, "/worker_{}.pkl".format(worker.id)))
 
-		logger.info(f"Saved workers")
+		logger.info("Saved workers")
 
 	def load(self, input_dir):
-		pop_dir = f"{input_dir}/population/worker_*.pkl"
-		logger.info(f"Trying to load workers from {pop_dir}")
+		pop_dir = os.path.join(input_dir, "population/worker_*.pkl")
+		logger.info("Trying to load workers from " + pop_dir)
 
 		self.workers = []
 		for i in glob(pop_dir):
-			logger.info(f"Loading {i}")
 			try:
 				w = self.SubjectClass.load(i, self.init_params)
 				self.workers.append(w)
-				logger.info(f"Loaded {w.id} {self.score(w)}")
+				logger.info("Loaded {}".format(w.id))
 
 			except Exception as e:
 				print(e)
-
-		logger.info(f"Loaded workers")
-
 
 
 	def scale_workers(self, epoch):
@@ -200,7 +205,7 @@ class Supervisor(object):
 		delta = self.n_workers(epoch) - len(self.workers)
 
 		if delta != 0:
-			logger.info(f"Resizing worker pool by {delta}")
+			logger.info("Resizing worker pool by {}".format(delta))
 
 		if delta < 0:
 			readies = [i for i in bottom20 if i.is_ready()]
@@ -211,28 +216,6 @@ class Supervisor(object):
 		elif delta > 0:	
 			for i in range(delta):
 				self.add_random_worker()
-
-		
-	def exploit(self, worker):
-		stack = list(self.workers)
-		random.shuffle(stack) # Tie-break randomly
-		stack = sorted(stack, key=self.score)
-		
-		n20 = round(len(stack)*0.2)
-		top20 = stack[-n20:]
-		bottom20 = stack[:n20]
-		
-		if worker in bottom20:
-			mentor = random.choice(top20)
-			return mentor.params
-		else:
-			return worker.params
-		
-	
-	def explore(self, params):
-		return {
-				k:v.mutate(self.heat) for k, v in params.items()
-		}
 
 	def add_random_worker(self):
 		additional = self.SubjectClass(self.init_params, self.hyperparam_spec)
@@ -269,11 +252,15 @@ class Supervisor(object):
 		
 		for i, worker in enumerate(self.workers):
 			for key, fn in measures.items():
-				self.plot.add_result(epoch, fn(worker),  str(i)+key, "s", '-')
+				self.plot_workers.add_result(epoch, fn(worker),  str(i)+key, "s", '-')
+
+			for key, val in worker.params.items():
+				if isinstance(val.value, int) or isinstance(val.value, float):
+					self.plot_hyper.add_result(epoch, val.value, str(i)+"_" +key)
 			
 			
-		self.plot.render()
-		self.plot.save_csv()
+		self.plot_workers.render()
+		self.plot_workers.save_csv()
 
 		for key, fn in measures.items():
 			vs = [fn(i) for i in self.workers]
@@ -281,16 +268,16 @@ class Supervisor(object):
 			if len(vs) > 0:
 				best = max(vs)
 				worst = min(vs)
-				self.hyperplot.add_result(epoch, best, f"{key}_max")
-				self.hyperplot.add_result(epoch, worst, f"{key}_min")
+				self.plot_progress.add_result(epoch, best, key+"_max")
+				self.plot_progress.add_result(epoch, worst, key+"_min")
 
-		self.hyperplot.add_result(epoch, len(self.workers), "n_workers")
+		self.plot_progress.add_result(epoch, len(self.workers), "n_workers")
 
 		best_worker = max(self.workers, key=self.score)
 
 		for key, val in best_worker.params.items():
 			if isinstance(val.value, int) or isinstance(val.value, float):
-				self.hyperplot.add_result(epoch, val.value, f"{key}_best")
+				self.plot_progress.add_result(epoch, val.value, key+"_best")
 
 
 
@@ -304,17 +291,17 @@ class Supervisor(object):
 	def _remove_worker(self, worker, epoch):
 		self.workers.remove(worker)
 		self.fail_count += 1
-		self.hyperplot.add_result(epoch, self.fail_count, "failed_workers")
+		self.plot_progress.add_result(epoch, self.fail_count, "failed_workers")
 
 
 	def step(self, epoch):
 		for i in self.workers:
 			try:
 				steps = i.params.get("micro_step", FP(1)).value
-				logger.info(f"{i.id} train {steps}")
+				logger.info("{}.train({})".format(i.id, steps))
 				i.step(steps)
 				i.eval()
-				logger.info(f"{i.id} eval {self.score(i)}")
+				logger.info("{}.eval()".format(i.id))
 			except Exception:
 				traceback.print_exc()
 				self._remove_worker(i, epoch)
@@ -328,24 +315,41 @@ class Supervisor(object):
 			self.save()
 			self.save_counter = self.save_freq
 
+	def exploit(self, worker):
+		stack = list(self.workers)
+		random.shuffle(stack) # Tie-break randomly
+		stack = sorted(stack, key=self.score)
+		
+		n20 = round(len(stack)*0.2)
+		top20 = stack[-n20:]
+		bottom20 = stack[:n20]
+		
+		if worker in bottom20:
+			mentor = random.choice(top20)
+			return mentor
+		else:
+			return None
+
 	def explore(self, epoch):
 		for i in self.workers:
 			if i.is_ready():
-				i.reset_count()
-				
-				params = i.params
-				params2 = self.exploit(i)
-				
-				if not self.params_equal(params, params2):
-					logger.info(f"{i.id} Replace with exploit-explore")
-					i.params = self.explore(params2)
 
-					try:
-						i.eval()
-					except Exception:
-						traceback.print_exc()
-						self._remove_worker(i, epoch)
-						continue
+				logger.info("{} is ready, attempting exploit".format(i.id))
+				
+				i.reset_count()
+				better = self.exploit(i)
+
+				if better is not None:
+					if not self.params_equal(i.params, better.params):
+						logger.info("{} replace with mutated {}".format(i.id, better.id))
+						i.params = better.explore(self.heat)
+
+						try:
+							i.eval()
+						except Exception:
+							traceback.print_exc()
+							self._remove_worker(i, epoch)
+							continue
 
 	def breed(self, epoch):
 		for i in self.workers:
@@ -365,6 +369,7 @@ class Supervisor(object):
 		
 	def run(self, epochs=1000):
 		for i in range(epochs):
+			logger.info("Epoch {}".format(i))
 			self.scale_workers(i)
 			self.step(i)
 			self.explore(i)

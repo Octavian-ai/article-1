@@ -75,7 +75,7 @@ class Ploty(object):
       self.datas[name][key].append(value)
 
     if self.terminal:
-      print(f'{{"metric": "{name}", "value": {y}, "x": {x} }}')
+      print('{{"metric": "{}", "value": {}, "x": {} }}'.format(name,y,x))
 
     if self.auto_render:
       self.render()

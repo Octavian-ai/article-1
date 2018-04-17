@@ -2,6 +2,9 @@
 import tensorflow as tf
 import numpy as np
 
+import traceback
+import os.path
+
 from .pbt import *
 from .pbt_param import *
 
@@ -16,7 +19,7 @@ def resize_and_load(var, val, sess):
     delta = o_shape[resize_dim] - i_shape[resize_dim]
     
     if delta != 0:
-      tf.logging.info(f"reshape var {var.name} by {delta}")
+      tf.logging.info("reshape var {} by {}".format(var.name, deta))
 
     if delta < 0:
       val = val[:,:o_shape[1]]
@@ -73,13 +76,21 @@ class EstimatorWorker(Worker):
 
   def setup_estimator(self):
 
+    model_dir = os.path.join(self.init_params["model_dir"], self._params["model_id"].value["cur"])
+    warm_start = None
 
-    if self._params["model_id"].value["warm_start_from"] is not None:
-      warm_start = self.init_params["model_dir"] + self._params["model_id"].value["warm_start_from"]
-    else:
+    try:
+      if self._params["model_id"].value["warm_start_from"] is not None:
+        warm_start = os.path.join(
+          self.init_params["model_dir"], 
+          self._params["model_id"].value["warm_start_from"])
+      
+
+    except Exception as e:
+      traceback.print_exc()
+      print(self._params)
+      model_dir = None
       warm_start = None
-
-    model_dir = self.init_params["model_dir"] + self._params["model_id"].value["cur"]
 
     # model_dir = self.init_params["model_dir"] + str(uuid.uuid1())
 
@@ -126,9 +137,9 @@ class EstimatorWorker(Worker):
     self.estimator.train(self.init_params["train_input_fn"](self._params), steps=steps)
     
   def do_eval(self):
-    # self.ensure_warm()
-    if self.estimator is None:
-      self.setup_estimator()
+    self.ensure_warm()
+    # if self.estimator is None:
+      # self.setup_estimator()
       
     return self.estimator.evaluate(self.init_params["eval_input_fn"](self._params))
 

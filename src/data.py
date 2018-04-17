@@ -74,10 +74,10 @@ class GraphData(object):
 					  	)
 					 ) for i in self.raw_data ]
 
-			tf.logging.info(f"Data loaded, got {len(data)} rows, {len(self.person_ids)} person nodes, {len(self.product_ids)} product nodes")
+			# tf.logging.info(f"Data loaded, got {len(data)} rows, {len(self.person_ids)} person nodes, {len(self.product_ids)} product nodes")
 			
-			scores = [i["review_score"] for i in self.raw_data]
-			tf.logging.info(f"Histogram: {np.histogram(scores)}")
+			# scores = [i["review_score"] for i in self.raw_data]
+			# tf.logging.info(f"Histogram: {np.histogram(scores)}")
 
 			random.seed(123)
 			random.shuffle(data)

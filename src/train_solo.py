@@ -38,17 +38,15 @@ def train(args):
 	# Build model and train
 	# --------------------------------------------------------------------------
 
+	params = vars(args)
+	params["n_person"]  = len(person_ids)
+	params["n_product"] = len(product_ids)
+
 	estimator = tf.estimator.Estimator(
 		model_fn=model_fn,
 		model_dir=model_dir,
-		params={
-			"lr": args.lr,
-			"n_person": len(person_ids),
-			"n_product": len(product_ids),
-			"embedding_width": args.embedding_width,
-			"n_cluster": args.n_cluster,
-			"cluster_factor": args.cluster_factor,
-		})
+		params=params
+	)
 
 
 	if args.mode == 'all' or args.mode == 'train':
@@ -72,6 +70,10 @@ def train(args):
 		print(result)
 
 
+
+	# --------------------------------------------------------------------------
+	# Generate predictions then save them to a CSV
+	# --------------------------------------------------------------------------
 
 	if args.mode == 'all' or args.mode == 'predict':
 		preds = estimator.predict(data_eval.input_fn)
