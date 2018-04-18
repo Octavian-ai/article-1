@@ -13,28 +13,9 @@ def model_fn(features, labels, mode, params):
 	# Inputs
 	# --------------------------------------------------------------------------
 
-	person_id 			= features[0]
-	product_id 			= features[1]
-	person_style 		= features[2] # For prediction debugging
-	product_style 		= features[3]
+	cf = tf.convert_to_tensor(params["cluster_factor"], dtype=tf.float32)
 
-	features_d = {
-		"person": {
-			"id": features[0],
-			"style": features[2]
-		},
-		"product": {
-			"id": features[1],
-			"style": features[3]
-		}
-	}
-
-	if params["cluster_factor_decay"]:
-		cf = 1.0 - tf.train.exponential_decay(1.0, 
-			tf.maximum(tf.convert_to_tensor(0, dtype=tf.int64), tf.train.get_global_step() - 5000), 
-			5000, 0.96, staircase=True)
-	else:
-		cf = tf.convert_to_tensor(params["cluster_factor"], dtype=tf.float32)
+	print(features)
 
 
 	# --------------------------------------------------------------------------
@@ -42,14 +23,15 @@ def model_fn(features, labels, mode, params):
 	# --------------------------------------------------------------------------
 
 	nouns = ["person", "product"]
+	hidden = {}
 	embeddings = {}
 	cluster = {}
 	cluster_dist = {}
 	cluster_loss = {}
 
 	for noun in nouns:
-		hidden = tf.get_variable(noun, [params["n_"+noun],  params["embedding_width"]])
-		emb  = tf.nn.embedding_lookup(hidden, features_d[noun]["id"])
+		hidden[noun] = tf.get_variable(noun, [params["n_"+noun],  params["embedding_width"]])
+		emb  = tf.nn.embedding_lookup(hidden[noun], features[noun]["id"])
 		# emb = tf.layers.dense(inputs=emb, units=(params["embedding_width"]), activation=tf.nn.relu)
 		embeddings[noun] = emb
 
@@ -81,9 +63,9 @@ def model_fn(features, labels, mode, params):
 		label_review_score = tf.expand_dims(label_review_score, -1)
 		emb_loss = tf.losses.mean_squared_error(pred_review_score, label_review_score)
 
-		cluster_loss = tf.reduce_sum(reduce((lambda a,b: a+b), cluster_loss.values() ))
+		cluster_loss = tf.reduce_mean(reduce((lambda a,b: a+b), cluster_loss.values() ))
 
-		loss = cf * cluster_loss + (1-cf) * emb_loss
+		loss = (cf * cluster_loss) + emb_loss
 
 		classes = 2
 
@@ -95,11 +77,12 @@ def model_fn(features, labels, mode, params):
 				score_to_class(pred_review_score, classes), classes),
 			"cluster_loss": tf.metrics.mean(cluster_loss),
 			"cluster_factor": tf.metrics.mean(cf),
+			"time_factor": tf.metrics.mean(t_f),
 			"emb_loss": tf.metrics.mean_squared_error(pred_review_score, label_review_score),
 		}
 
 		for noun in nouns:
-			eval_metric_ops["cluster_"+noun] = tf.metrics.mean(cluster[noun])
+			tf.summary.histogram(noun+"_cluster", cluster[noun])
 
 		train_op = tf.train.AdamOptimizer(params["lr"]).minimize(loss=loss, global_step=tf.train.get_global_step())
 
@@ -115,7 +98,7 @@ def model_fn(features, labels, mode, params):
 
 	if mode == tf.estimator.ModeKeys.PREDICT:
 
-		# label_review_score = features[4]
+		# label_review_score = features["review_score"]
 		# label_review_score = tf.expand_dims(label_review_score, -1)
 		# loss = tf.square(tf.abs(label_review_score - pred_review_score))
 
@@ -129,7 +112,7 @@ def model_fn(features, labels, mode, params):
 
 		for noun in nouns:
 			for prop in ["id", "style"]:
-				predictions[noun+"_"+prop] = features_d[noun][prop]
+				predictions[noun+"_"+prop] = features[noun][prop]
 
 			predictions[noun+"_cluster_class"] =  tf.nn.softmax(cluster_dist[noun])
 

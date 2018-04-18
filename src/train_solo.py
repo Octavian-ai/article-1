@@ -56,8 +56,8 @@ def train(args):
 		)
 		tf.logging.info(f"Training for max_steps {max_steps}")
 
-		train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn, max_steps=max_steps)
-		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn, throttle_secs=30)
+		train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn_walk, max_steps=max_steps)
+		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn_walk, throttle_secs=30)
 
 		tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 

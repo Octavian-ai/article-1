@@ -20,6 +20,7 @@ settings = {
 	}
 }
 
+nouns = ["person", "product"]
 
 class GraphData(object):
 
@@ -49,6 +50,7 @@ class GraphData(object):
 				person.style_preference as person_style,
 				product.style as product_style,
 				review.score as review_score
+			LIMIT 3
 		"""
 
 		self.query_params = {
@@ -72,30 +74,180 @@ class GraphData(object):
 		}
 
 
+		def data_to_vec(i):
+			return ({
+					"person": {
+						"id": self._get_index(i, "person"),
+						"style": i["person_style"],
+					},
+					"product": {
+						"id": self._get_index(i, "product"),
+						"style": i["product_style"],
+					}, 
+					"review_score": i["review_score"],
+				}, 
+				(
+					i["review_score"]	
+				)
+			)
+
+			# return (
+			# 			( 
+			# 				self._get_index(i, "person"), 
+			# 				self._get_index(i, "product"),
+			# 				i["person_style"],
+			# 		  		i["product_style"],
+			# 		  		i["review_score"], # For prediction debugging convenience. Not used for training
+			# 			), 
+			# 		  	( 
+			# 		  		i["review_score"]
+			# 		  	)
+			# 		 )
+
+
 		with driver.session() as session:
 			self.raw_data = session.run(self.query, **self.query_params).data()
-			data = [ (
-						( 
-							self._get_index(i, "person"), 
-							self._get_index(i, "product"),
-							i["person_style"],
-					  		i["product_style"],
-					  		i["review_score"], # For prediction debugging convenience. Not used for training
-						), 
-					  	( 
-					  		i["review_score"]
-					  	)
-					 ) for i in self.raw_data ]
-
-			# tf.logging.info(f"Data loaded, got {len(data)} rows, {len(self.person_ids)} person nodes, {len(self.product_ids)} product nodes")
-			
-			# scores = [i["review_score"] for i in self.raw_data]
-			# tf.logging.info(f"Histogram: {np.histogram(scores)}")
+			data = [ data_to_vec(i) for i in self.raw_data ]
 
 			random.seed(123)
 			random.shuffle(data)
 
+			self.indexed_data = {}
+			for noun in nouns:
+				self.indexed_data[noun] = {
+					self._uuid_to_index(k, self.ids[noun]): [
+						data_to_vec(i) for i in self.raw_data if i[noun+"_id"] == k
+					] 
+					for k in self.ids[noun]
+				}
+
+
 			self.data = data
+
+
+	
+
+
+	# --------------------------------------------------------------------------
+	# Input functions
+	# --------------------------------------------------------------------------
+	
+
+	def generate_walks(self):
+
+		def next_noun(prev):
+			for noun in nouns:
+				if noun != prev:
+					return noun
+
+		for noun in nouns:
+			for i in self.indexed_data[noun]:
+				batch = []
+				noun_to_join = next_noun(noun)
+				batch.append(random.choice(i))
+
+				while len(batch) < self.args.batch_size:
+					
+					next_id = batch[-1][noun_to_join]["id"]
+					next_rows = self.indexed_data[noun_to_join].get(next_id, [])
+
+					if len(next_rows) > 0:
+						batch.append(random.choice(next_rows))
+					else:
+						# Start again
+						noun_to_join = next_noun(noun)
+						batch.append(random.choice(i))
+
+				yield batch
+
+	
+	
+	
+	@property
+	def input_fn_walk(self):
+		return lambda: tf.data.Dataset.from_generator(
+			lambda: self.generate_walks(),
+			self.dataset_dtype,
+			self.dataset_size
+		)
+	
+
+
+	def gen_input_fn(self, batch_size=None, limit=None):
+
+		if limit is None:
+			limit = len(self.data)
+
+		if batch_size is None:
+			batch_size = self.args.batch_size
+
+		d = tf.data.Dataset.from_generator(
+			lambda: (i for i in self.data[:limit]),
+			self.dataset_dtype,
+			self.dataset_size
+		)
+
+		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
+		d = d.shuffle(len(self), reshuffle_each_iteration=self.args.shuffle_batch)
+		d = d.repeat(self.args.data_passes_per_epoch)
+		d = d.batch(batch_size)
+
+		return d
+
+	# This is a little syntactic sugar so the caller can pass input_fn directly into Estimator.train()
+	@property
+	def input_fn(self):
+		return lambda: self.gen_input_fn()
+
+	@property
+	def dataset_dtype(self):
+		return (
+			{
+				"person": {
+					"id": tf.int32,
+					"style": tf.float32
+				},
+				"product": {
+					"id": tf.int32,
+					"style": tf.float32
+				}, 
+				"review_score": tf.float32
+			}, 
+			(tf.float32)
+		)
+
+	@property
+	def dataset_size(self):
+		return (
+			{
+				"person": {
+					"id": tf.TensorShape([]),
+					"style": tf.TensorShape([6]),
+				},
+				"product": {
+					"id": tf.TensorShape([]),
+					"style": tf.TensorShape([6]),
+				}, 
+				"review_score": tf.TensorShape([]) 
+			}, 
+			( tf.TensorShape([]) )
+		)
+
+
+	# --------------------------------------------------------------------------
+	# Utilities
+	# --------------------------------------------------------------------------
+	
+	@property
+	def n_person(self):
+		return len(self.person_ids)
+
+	@property
+	def n_product(self):
+		return len(self.product_ids)
+
+	def __len__(self):
+		return len(self.data)
 
 	def write_labels(self, output_dir, prefix):
 
@@ -142,62 +294,6 @@ class GraphData(object):
 				config_file.write("  metadata_path: './"+prefix+"_"+noun+"_labels.tsv'")
 
 			config_file.write("}")
-
-
-	@property
-	def n_person(self):
-		return len(self.person_ids)
-
-	@property
-	def n_product(self):
-		return len(self.product_ids)
-
-	def __len__(self):
-		return len(self.data)
-
-	def gen_input_fn(self, batch_size=None, limit=None):
-
-		if limit is None:
-			limit = len(self.data)
-
-		def gen():
-			return (i for i in self.data[:limit])
-
-		d = tf.data.Dataset.from_generator(
-			gen,
-			(
-				(
-					tf.int32, tf.int32, 
-					tf.float32, tf.float32, 
-					tf.float32
-				), 
-				(tf.float32)
-			),
-			(
-				( 
-					tf.TensorShape([]), tf.TensorShape([]), 
-					tf.TensorShape([6]), tf.TensorShape([6]), 
-					tf.TensorShape([]) 
-				), 
-				( tf.TensorShape([]) )
-			)
-		)
-
-		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
-		d = d.shuffle(len(self), reshuffle_each_iteration=self.args.shuffle_batch)
-		d = d.repeat(self.args.data_passes_per_epoch)
-
-		if batch_size is None:
-			batch_size = self.args.batch_size
-
-		d = d.batch(batch_size)
-
-		return d
-
-	# This is a little syntactic sugar so the caller can pass input_fn directly into Estimator.train()
-	@property
-	def input_fn(self):
-		return lambda: self.gen_input_fn()
 
 
 
