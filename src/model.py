@@ -29,6 +29,12 @@ def model_fn(features, labels, mode, params):
 		}
 	}
 
+	if params["cluster_factor_decay"]:
+		cf = 1.0 - tf.train.exponential_decay(1.0, 
+			tf.maximum(tf.convert_to_tensor(0, dtype=tf.int64), tf.train.get_global_step() - 5000), 
+			5000, 0.96, staircase=True)
+	else:
+		cf = tf.convert_to_tensor(params["cluster_factor"], dtype=tf.float32)
 
 
 	# --------------------------------------------------------------------------
@@ -37,6 +43,7 @@ def model_fn(features, labels, mode, params):
 
 	nouns = ["person", "product"]
 	embeddings = {}
+	cluster = {}
 	cluster_dist = {}
 	cluster_loss = {}
 
@@ -47,8 +54,8 @@ def model_fn(features, labels, mode, params):
 		embeddings[noun] = emb
 
 		# K-Means
-		clusters = tf.get_variable(noun+"_cluster", [params["n_clusters"],  params["embedding_width"]])
-		cluster_dist[noun] = tf.reduce_sum(tf.square(tf.expand_dims(clusters, 0) - tf.expand_dims(emb, 1)), axis=-1)
+		cluster[noun] = tf.get_variable(noun+"_cluster", [params["n_clusters"],  params["embedding_width"]])
+		cluster_dist[noun] = tf.reduce_sum(tf.square(tf.expand_dims(cluster[noun], 0) - tf.expand_dims(emb, 1)), axis=-1)
 		cluster_loss[noun] = tf.reduce_min(cluster_dist[noun], axis=-1)
 		
 
@@ -76,8 +83,6 @@ def model_fn(features, labels, mode, params):
 
 		cluster_loss = tf.reduce_sum(reduce((lambda a,b: a+b), cluster_loss.values() ))
 
-		cf = tf.convert_to_tensor(params["cluster_factor"], dtype=tf.float32)
-
 		loss = cf * cluster_loss + (1-cf) * emb_loss
 
 		classes = 2
@@ -89,8 +94,12 @@ def model_fn(features, labels, mode, params):
 				score_to_class(label_review_score, classes),
 				score_to_class(pred_review_score, classes), classes),
 			"cluster_loss": tf.metrics.mean(cluster_loss),
+			"cluster_factor": tf.metrics.mean(cf),
 			"emb_loss": tf.metrics.mean_squared_error(pred_review_score, label_review_score),
 		}
+
+		for noun in nouns:
+			eval_metric_ops["cluster_"+noun] = tf.metrics.mean(cluster[noun])
 
 		train_op = tf.train.AdamOptimizer(params["lr"]).minimize(loss=loss, global_step=tf.train.get_global_step())
 
