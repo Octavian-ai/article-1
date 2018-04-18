@@ -11,8 +11,7 @@ name = "pypi"
 
 [packages]
 
-"neo4j-driver" = "*"
+tensorflow = "==1.6"
 numpy = "*"
-tensorflow = "*"
-matplotlib = "*"
-ipython = "*"
+google-cloud = "*"
+"neo4j-driver" = "*"

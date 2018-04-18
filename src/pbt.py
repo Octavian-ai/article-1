@@ -132,19 +132,19 @@ class Supervisor(object):
 
 	"""
 	def __init__(self, 
+				 args,
 				 SubjectClass, 
 				 init_params,
 				 hyperparam_spec, 
-				 output_dir,
 				 score,
 				 n_workers=10, 
 				 save_freq=20,
 				 ):
 
+		self.args = args
 		self.SubjectClass = SubjectClass
 		self.init_params = init_params
 		self.hyperparam_spec = hyperparam_spec
-		self.output_dir = output_dir
 		self.score = score
 		self.save_freq = save_freq
 		self.save_counter = save_freq
@@ -158,13 +158,13 @@ class Supervisor(object):
 
 		self.fail_count = 0
 		self.workers = []
-		self.plot_workers  = Ploty(title='Worker performance', x='Time', y="Score", output_path=output_dir)
-		self.plot_progress = Ploty(title='Training progress', x='Time', y="Value", output_path=output_dir)
-		self.plot_hyper    = Ploty(title='Hyper parameters', x='Time', y="Value", output_path=output_dir)
+		self.plot_workers  = Ploty(args, title='Worker performance', x='Time', y="Score")
+		self.plot_progress = Ploty(args, title='Training progress', x='Time', y="Value")
+		self.plot_hyper    = Ploty(args, title='Hyper parameters', x='Time', y="Value")
 
 
 	def save(self):
-		p = os.path.join(self.output_dir, "population")
+		p = os.path.join(self.args.output_dir, "population")
 
 		try:
 			pathlib.Path(p).mkdir(parents=True, exist_ok=True) 
@@ -257,10 +257,6 @@ class Supervisor(object):
 			for key, val in worker.params.items():
 				if isinstance(val.value, int) or isinstance(val.value, float):
 					self.plot_hyper.add_result(epoch, val.value, str(i)+"_" +key)
-			
-			
-		self.plot_workers.render()
-		self.plot_workers.save_csv()
 
 		for key, fn in measures.items():
 			vs = [fn(i) for i in self.workers]
@@ -278,6 +274,10 @@ class Supervisor(object):
 		for key, val in best_worker.params.items():
 			if isinstance(val.value, int) or isinstance(val.value, float):
 				self.plot_progress.add_result(epoch, val.value, key+"_best")
+
+		self.plot_progress.write()
+		self.plot_workers.write()
+		self.plot_hyper.write()
 
 
 

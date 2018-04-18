@@ -1,8 +1,17 @@
 
-import collections
+from src.args import get_args 
 
-Args = collections.namedtuple('Args', [
-	'batch_size', 'database', 'data_passes_per_epoch', 
-	"output_dir", "shuffle_batch"])
+def gen_args(bucket=None, gcs_dir=None):
+	args = [
+		"--output-dir=./output_test",
+		"--model-dir=./output_test/checkpoint",
+		"--shuffle-batch=False",
+	]
 
-test_args = Args(32, 'hosted', 1, "./output_test/", False)
+	if bucket is not None:
+		args.append("--bucket=" + bucket)
+
+	if gcs_dir is not None:
+		args.append("--gcs-dir=" + gcs_dir)
+
+	return get_args(args)

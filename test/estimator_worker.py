@@ -7,24 +7,30 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src import *
 
-from .env import test_args
+from .env import *
+test_args = gen_args()
+
 file_path = test_args.output_dir + "worker1"
 
-class WidgetTestCase(unittest.TestCase):
+class EstimatorWorkerTestCase(unittest.TestCase):
 
 	# Helpers
-	def assertDictAlmostEqual(self, first, second, places, msg=None):
+	def assertDictAlmostEqual(self, first, second, threshold=0.4, msg=None):
 		for key, val in first.items():
-			self.assertAlmostEqual(val, second[key], places, key + ": " + msg)
+			delta = abs(float(val) - float(second[key]))
+			pct = delta / float(val)
+			self.assertTrue(pct < threshold, key + ": " + msg)
+			# self.assertAlmostEqual(val, second[key], places, key + ": " + msg)
 
 	def vend_worker(self):
-		return EstimatorWorker(self.init_params, pbt_param_spec)
+		return EstimatorWorker(self.init_params, self.hyperparam_spec)
 
 
 	# Setup and teardown
 
 	def setUp(self):
 		self.init_params = gen_worker_init_params(test_args)
+		self.hyperparam_spec = gen_param_spec(test_args)
 
 	
 	# ==========================================================================
@@ -43,7 +49,7 @@ class WidgetTestCase(unittest.TestCase):
 
 		worker2.eval()
 
-		self.assertDictAlmostEqual(worker1.results, worker2.results, 2, "Evaluation after loading and eval should be unchanged")
+		self.assertDictAlmostEqual(worker1.results, worker2.results, msg="Evaluation after loading and eval should be unchanged")
 		self.assertEqual(worker1.params, worker2.params)
 
 	def test_param_copy(self):
@@ -55,7 +61,8 @@ class WidgetTestCase(unittest.TestCase):
 		worker2.params = worker1.params
 		worker2.eval()
 
-		self.assertDictAlmostEqual(worker1.results, worker2.results, 2, "Evaluation after param copy should be the same")
+		# self.assertGreaterEqual(worker2.results["accuracy"], worker1.results["accuracy"])
+		self.assertDictAlmostEqual(worker1.results, worker2.results, msg="Evaluation after param copy should be the same")
 		
 
 

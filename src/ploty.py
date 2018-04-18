@@ -1,25 +1,52 @@
 
-import matplotlib
-matplotlib.use("Agg")
 
 import tensorflow as tf
-from matplotlib import pyplot as plt
-
-from IPython.display import clear_output
 import csv
+import sys
+import os.path
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+# --------------------------------------------------------------------------
+# Some environments have these components. Try to load them, and if they
+# are not available, gracefully fallback
+# --------------------------------------------------------------------------
+
+try:
+  import matplotlib
+  matplotlib.use("Agg") # Work in terminal
+
+  from IPython.display import clear_output
+  from matplotlib import pyplot as plt
+except ImportError as e:
+  logger.warn("Could not import matplotlib, no graphs will be generated")
+  pass
+
 
 try:
   from google.colab import auth
   from googleapiclient.discovery import build
   from googleapiclient.http import MediaFileUpload
-except:
+except ImportError as e:
+  logger.warn("Could not import googleapiclient, will not save to google drive")
   pass
 
 
+from .writer import TextWritey
+from .decorator import debounce
+
 class Ploty(object):
 
-  def __init__(self, output_path, title='', x='', y="Time to training complete", legend=True, log_y=False, log_x=False, clear_screen=True, terminal=True, auto_render=True):
-    self.output_path = output_path
+  def __init__(self, 
+    args,
+    title='', x='', y='', 
+    legend=True, log_y=False, log_x=False, 
+    clear_screen=True, terminal=True
+  ):
+
+    self.args = args
     self.title = title
     self.label_x = x
     self.label_y = y
@@ -28,33 +55,38 @@ class Ploty(object):
     self.clear_screen = clear_screen
     self.legend = legend
     self.terminal = terminal
-    self.auto_render = auto_render
 
     self.header = ["x", "y", "label"]
     self.datas = {}
     
     self.c_i = 0
-    self.cmap = plt.cm.get_cmap('hsv', 10)
 
-    self.fig = plt.figure()
-    self.ax = self.fig.add_subplot(111)
-    
-    if self.log_x:
-      self.ax.set_xscale('log')
-    
-    if self.log_y:
-      self.ax.set_yscale('log')
+    try:
+      self.cmap = plt.cm.get_cmap('hsv', 10)
+      self.fig = plt.figure()
+      self.ax = self.fig.add_subplot(111)
+      
+      if self.log_x:
+        self.ax.set_xscale('log')
+      
+      if self.log_y:
+        self.ax.set_yscale('log')
+    except Exception:
+      self.cmap = None
+      pass
     
     
   def ensure(self, name, extra_data):
     if name not in self.datas:
       self.datas[name] = {
-        "c": self.cmap(self.c_i),
         "x": [],
         "y": [],
         "m": ".",
         "l": '-'
       }
+
+      if self.cmap is not None:
+        self.datas[name]["c"] = self.cmap(self.c_i)
 
       for i in extra_data.keys():
         self.datas[name][i] = []
@@ -77,12 +109,7 @@ class Ploty(object):
     if self.terminal:
       print('{{"metric": "{}", "value": {}, "x": {} }}'.format(name,y,x))
 
-    if self.auto_render:
-      self.render()
-      self.save_csv()
-    
-  def runningMeanFast(x, N):
-    return np.convolve(np.array(x), np.ones((N,))/N)[(N-1):]
+
   
   def render(self):
     self.render_pre()
@@ -100,7 +127,7 @@ class Ploty(object):
     plt.cla()
     
   def render_post(self):
-    img_name = self.output_path + '/' + self.title.replace(" ", "_") + '.png'
+    img_name = self.args.output_dir + '/' + self.title.replace(" ", "_") + '.png'
     
     artists = []
 
@@ -114,24 +141,39 @@ class Ploty(object):
         
     try:
         os.remove(img_name)
-    except:
+    except FileNotFoundError:
         pass
         
     plt.savefig(img_name, bbox_extra_artists=artists, bbox_inches='tight')
-    tf.logging.info("Saved image: " + img_name)
+    logger.info("Saved image: " + img_name)
     
     if not self.terminal:
 	    plt.show()
+
+  @property
+  def filename(self):
+    return self.title.replace(" ", "_") + '.csv'
+  
+  @property
+  def file_path(self):
+    return os.path.join(self.args.output_dir, self.filename)
+
+  def write(self):
+    self.save_csv()
+
+    if 'matplotlib' in sys.modules:
+      self.render()
+
+
     
+  
   def save_csv(self):
     try:
-        os.remove(csv_name)
-    except:
-        pass
+      os.remove(self.file_path)
+    except FileNotFoundError:
+      pass
     
-    csv_name = self.output_path + '/' + self.title.replace(" ", "_") + '.csv'
-    
-    with open(csv_name, 'w') as csvfile:
+    with TextWritey(self.args, self.filename) as csvfile:
       writer = csv.writer(csvfile)
       writer.writerow(self.header)
       
@@ -142,7 +184,7 @@ class Ploty(object):
           ]
           writer.writerow(row)
 
-      tf.logging.info("Saved CSV: " + csv_name)
+    logger.info("Saved CSV: " + self.file_path)
     
   
   def copy_to_drive(self, snapshot=False):   
@@ -159,7 +201,7 @@ class Ploty(object):
         'name': dest_name,
         'mimeType': mime
       }
-      media = MediaFileUpload(self.output_path + source_name, 
+      media = MediaFileUpload(self.args.output_dir + source_name, 
                               mimetype=file_metadata['mimeType'],
                               resumable=True)
       

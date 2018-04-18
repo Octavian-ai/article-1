@@ -6,6 +6,20 @@ import random
 import json
 from neo4j.v1 import GraphDatabase, Driver
 
+# After fighting with gcloud, I dumped this here. Ideally, package elsewhere
+settings = {
+	"hosted": {
+		"neo4j_url": "bolt://b2355e7e.databases.neo4j.io",
+		"neo4j_user": "readonly",
+		"neo4j_password": "OS5jLkVsOUZCVTdQOU5PazBo"
+	},
+	"local": {
+		"neo4j_url": "bolt://localhost",
+	    "neo4j_user": "neo4j",
+	    "neo4j_password": "neo4j"
+	}
+}
+
 
 class GraphData(object):
 
@@ -42,8 +56,7 @@ class GraphData(object):
 			"test": test
 		}
 
-		with open('./settings.json') as f:
-			self.settings = json.load(f)[args.database]
+		self.settings = settings[args.database]
 
 		driver = GraphDatabase.driver(
 			self.settings["neo4j_url"], 
@@ -102,7 +115,7 @@ class GraphData(object):
 						cls = idx
 						break
 
-				return f"{cls}\t{idd}\n"
+				return "{}\t{}\n".format(cls, idd)
 			else:
 				return "\t\n"
 
@@ -113,7 +126,7 @@ class GraphData(object):
 			for i in self.raw_data:
 				ordered[self._get_index(i, noun)] = i
 				
-			with open(os.path.join(output_dir, f"{prefix}_{noun}_labels.tsv"), 'w') as label_file:
+			with open(os.path.join(output_dir, prefix+"_"+noun+"_labels.tsv"), 'w') as label_file:
 				label_file.write(header)
 
 				for i in range(len(ordered)):
@@ -125,8 +138,8 @@ class GraphData(object):
 			config_file.write("embeddings {")
 
 			for noun in nouns:
-				config_file.write(f" tensor_name: '{noun}'")
-				config_file.write(f"  metadata_path: './{prefix}_{noun}_labels.tsv'")
+				config_file.write(" tensor_name: '"+noun+"'")
+				config_file.write("  metadata_path: './"+prefix+"_"+noun+"_labels.tsv'")
 
 			config_file.write("}")
 

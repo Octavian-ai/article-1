@@ -147,17 +147,20 @@ class EstimatorWorker(Worker):
   # Hooks for Pickle
   def __getstate__(self):
     return {
-      "_params":  self.params,
-      "count":    self.count,
-      "results":  self.results,
-      "id":       self.id
+      "_params":          self.params,
+      "results":          self.results,
+      "id":               self.id,
+      "current_count":    self.current_count,
+      "total_count":      self.total_count,
     }
 
   def __setstate__(self, state):
-    self.id       = state.get("id", uuid.uuid1())
-    self.count    = state.get("count", 0)
-    self.results  = state.get("results", {})
-    self._params   = state.get("_params", {})
+    self.id             = state.get("id", uuid.uuid1())
+    self.total_count    = state.get("total_count", 0)
+    self.current_count  = state.get("current_count", 0)
+
+    self.results        = state.get("results", {})
+    self._params        = state.get("_params", {})
 
     self.estimator = None
     self.trained = False

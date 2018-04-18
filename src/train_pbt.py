@@ -49,7 +49,7 @@ def gen_worker_init_params(args):
 		"estimator_params": estimator_params, 
 		"train_input_fn": lambda params: data_train.input_fn, # lambda params: lambda: data_train.gen_input_fn(args["batch_size"].value, args["n_train"].value), 
 		"eval_input_fn": lambda params: data_test.input_fn,   # lambda params: lambda: data_test.gen_input_fn(args["batch_size"].value, args["n_val"].value),
-		"model_dir": os.path.join(args.output_dir, "checkpoint")
+		"model_dir": args.model_dir
 	}
 
 	return worker_init_params
@@ -65,10 +65,10 @@ def train(args):
 	# decay_schedule(start_val=30,end_val=10)
 
 	s = Supervisor(
+		args,
 		EstimatorWorker, 
 		gen_worker_init_params(args), 
 		gen_param_spec(args), 
-		args.output_dir, 
 		score=score,
 		n_workers=args.n_workers)
 
