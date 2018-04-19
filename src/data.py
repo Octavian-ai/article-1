@@ -50,7 +50,6 @@ class GraphData(object):
 				person.style_preference as person_style,
 				product.style as product_style,
 				review.score as review_score
-			LIMIT 3
 		"""
 
 		self.query_params = {
@@ -140,6 +139,41 @@ class GraphData(object):
 				if noun != prev:
 					return noun
 
+		def join_batch(batch):
+			"""Turn a list of dict into a dict of lists"""
+
+			dest = {
+				"review_score": [],
+				"person": {
+					"id": [],
+					"style": []
+				},
+				"product": {
+					"id": [],
+					"style": []
+				}
+			}
+
+			def extract(d, path):
+				"""Get the value at `path` in a recursive dict"""
+				if path == []:
+					return d
+				else:
+					return extract(d[path[0]], path[1:])
+
+
+			def gather(batch, dest, path=[]):
+				"""Recursively traverse dictionary, then fill each list with elements from batch"""
+				for k, v in dest.items():
+					if instanceof(v, dict):
+						gather(batch, v, path + [k])
+					elif instanceof(v, list):
+						v.extend([extract(i, path) for i in batch])
+					else:
+						raise Exception("Unexpected element in destination " + k)
+
+
+
 		for noun in nouns:
 			for i in self.indexed_data[noun]:
 				batch = []
@@ -158,7 +192,9 @@ class GraphData(object):
 						noun_to_join = next_noun(noun)
 						batch.append(random.choice(i))
 
-				yield batch
+				b = join_batch(batch)
+				print(b)
+				yield b
 
 	
 	
