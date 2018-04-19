@@ -1,6 +1,7 @@
 
 import unittest
 import os
+import os.path
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -10,7 +11,7 @@ from src import *
 from .env import *
 test_args = gen_args()
 
-file_path = test_args.output_dir + "worker1"
+file_path = os.path.join(test_args.output_dir, "worker1")
 
 class EstimatorWorkerTestCase(unittest.TestCase):
 
@@ -18,7 +19,7 @@ class EstimatorWorkerTestCase(unittest.TestCase):
 	def assertDictAlmostEqual(self, first, second, threshold=0.4, msg=None):
 		for key, val in first.items():
 			delta = abs(float(val) - float(second[key]))
-			pct = delta / float(val)
+			pct = delta / (float(val) + 0.00000001)
 			self.assertTrue(pct < threshold, key + ": " + msg)
 			# self.assertAlmostEqual(val, second[key], places, key + ": " + msg)
 
@@ -52,6 +53,7 @@ class EstimatorWorkerTestCase(unittest.TestCase):
 		self.assertDictAlmostEqual(worker1.results, worker2.results, msg="Evaluation after loading and eval should be unchanged")
 		self.assertEqual(worker1.params, worker2.params)
 
+
 	def test_param_copy(self):
 		worker1 = self.vend_worker()
 		worker1.step(20)
@@ -65,10 +67,30 @@ class EstimatorWorkerTestCase(unittest.TestCase):
 		self.assertDictAlmostEqual(worker1.results, worker2.results, msg="Evaluation after param copy should be the same")
 		
 
+	def test_change_model(self):
+
+		hp = gen_param_spec(test_args)
+		hp["embedding_width"] = FixedParamOf(80)
+		self.assertTrue("vars" in hp)
+
+		worker1 = EstimatorWorker(self.init_params, hp)
+		self.assertTrue("vars" in worker1.params)
+
+		worker1.step(1)
+		worker1.eval()
+
+		params = worker1.explore(1)
+		params["embedding_width"] = FixedParam(100)
+		worker1.params = params
+
+		worker1.step(1)
+		worker1.eval()
+
+		# The test is that this does not crash!
 
 
-if __name__ == '__main__':
-	tf.logging.set_verbosity('INFO')
+if __name__ == '__main__':	
+	# tf.logging.set_verbosity('INFO')
 	unittest.main()
 
 

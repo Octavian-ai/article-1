@@ -14,7 +14,6 @@ import sys
 
 from .ploty import Ploty
 
-logging.basicConfig()
 logger = logging.getLogger('pbt')
 logger.setLevel(logging.INFO)
 

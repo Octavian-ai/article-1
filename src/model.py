@@ -10,15 +10,6 @@ def score_to_class(tensor, buckets=2):
 def model_fn(features, labels, mode, params):
 
 	# --------------------------------------------------------------------------
-	# Inputs
-	# --------------------------------------------------------------------------
-
-	cf = tf.convert_to_tensor(params["cluster_factor"], dtype=tf.float32)
-
-	print(features)
-
-
-	# --------------------------------------------------------------------------
 	# Model
 	# --------------------------------------------------------------------------
 
@@ -32,7 +23,6 @@ def model_fn(features, labels, mode, params):
 	for noun in nouns:
 		hidden[noun] = tf.get_variable(noun, [params["n_"+noun],  params["embedding_width"]])
 		emb  = tf.nn.embedding_lookup(hidden[noun], features[noun]["id"])
-		# emb = tf.layers.dense(inputs=emb, units=(params["embedding_width"]), activation=tf.nn.relu)
 		embeddings[noun] = emb
 
 		# K-Means
@@ -63,9 +53,10 @@ def model_fn(features, labels, mode, params):
 		label_review_score = tf.expand_dims(label_review_score, -1)
 		emb_loss = tf.losses.mean_squared_error(pred_review_score, label_review_score)
 
-		cluster_loss = tf.reduce_mean(reduce((lambda a,b: a+b), cluster_loss.values() ))
+		# cf = tf.convert_to_tensor(params["cluster_factor"], dtype=tf.float32)
+		# cluster_loss = tf.reduce_mean(reduce((lambda a,b: a+b), cluster_loss.values() ))
 
-		loss = (cf * cluster_loss) + emb_loss
+		loss =  emb_loss
 
 		classes = 2
 
@@ -75,9 +66,8 @@ def model_fn(features, labels, mode, params):
 			"accuracy_per_class": tf.metrics.mean_per_class_accuracy(
 				score_to_class(label_review_score, classes),
 				score_to_class(pred_review_score, classes), classes),
-			"cluster_loss": tf.metrics.mean(cluster_loss),
-			"cluster_factor": tf.metrics.mean(cf),
-			"time_factor": tf.metrics.mean(t_f),
+			# "cluster_loss": tf.metrics.mean(cluster_loss),
+			# "cluster_factor": tf.metrics.mean(cf),
 			"emb_loss": tf.metrics.mean_squared_error(pred_review_score, label_review_score),
 		}
 

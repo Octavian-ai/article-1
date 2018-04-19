@@ -52,12 +52,12 @@ def train(args):
 	if args.mode == 'all' or args.mode == 'train':
 
 		max_steps = round(
-			float(args.data_passes_per_epoch * len(data_train) * args.epochs) / args.batch_size
+			(len(product_ids) + len(person_ids)) * args.epochs
 		)
 		tf.logging.info(f"Training for max_steps {max_steps}")
 
 		train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn_walk, max_steps=max_steps)
-		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn_walk, throttle_secs=30)
+		eval_spec = tf.estimator.EvalSpec(input_fn=data_eval.input_fn_walk, throttle_secs=60)
 
 		tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 

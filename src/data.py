@@ -85,9 +85,7 @@ class GraphData(object):
 					}, 
 					"review_score": i["review_score"],
 				}, 
-				(
-					i["review_score"]	
-				)
+				i["review_score"]	
 			)
 
 			# return (
@@ -131,91 +129,65 @@ class GraphData(object):
 	# Input functions
 	# --------------------------------------------------------------------------
 	
-
-	def generate_walks(self):
+	def gen_walk(self, batch_size, limit):
 
 		def next_noun(prev):
+			found_prev = False
 			for noun in nouns:
-				if noun != prev:
+				if noun == prev:
+					found_prev = True
+				elif found_prev:
 					return noun
 
-		def join_batch(batch):
-			"""Turn a list of dict into a dict of lists"""
+			# Loop back to start
+			return nouns[0]
 
-			dest = {
-				"review_score": [],
-				"person": {
-					"id": [],
-					"style": []
-				},
-				"product": {
-					"id": [],
-					"style": []
-				}
-			}
-
-			def extract(d, path):
-				"""Get the value at `path` in a recursive dict"""
-				if path == []:
-					return d
-				else:
-					return extract(d[path[0]], path[1:])
-
-
-			def gather(batch, dest, path=[]):
-				"""Recursively traverse dictionary, then fill each list with elements from batch"""
-				for k, v in dest.items():
-					if instanceof(v, dict):
-						gather(batch, v, path + [k])
-					elif instanceof(v, list):
-						v.extend([extract(i, path) for i in batch])
-					else:
-						raise Exception("Unexpected element in destination " + k)
-
-
+		def limit_items(l, n):
+			if n is None or n > len(l):
+				return l
+			else:
+				return l[:n]
 
 		for noun in nouns:
-			for i in self.indexed_data[noun]:
-				batch = []
-				noun_to_join = next_noun(noun)
-				batch.append(random.choice(i))
-
-				while len(batch) < self.args.batch_size:
+			for obj_id, rows in limit_items(self.indexed_data[noun].items(), limit):
+				if len(rows) > 0:
+					batch = []
 					
-					next_id = batch[-1][noun_to_join]["id"]
-					next_rows = self.indexed_data[noun_to_join].get(next_id, [])
+					batch.append(random.choice(rows))
+					noun_to_join = next_noun(noun)
 
-					if len(next_rows) > 0:
-						batch.append(random.choice(next_rows))
-					else:
-						# Start again
+					while len(batch) < batch_size:
+						next_id = batch[-1][0][noun_to_join]["id"]
+						next_rows = self.indexed_data[noun_to_join].get(next_id, [])
+
+						if len(next_rows) > 0:
+							batch.append(random.choice(next_rows))
+							noun_to_join = next_noun(noun_to_join)
+						else:
+							break
+
+					# Random rows to pad - seems to never happen
+					while len(batch) < batch_size:
+						batch.append(random.choice(self.data))
 						noun_to_join = next_noun(noun)
-						batch.append(random.choice(i))
 
-				b = join_batch(batch)
-				print(b)
-				yield b
+					for b in batch:
+						yield b
 
 	
 	
-	
-	@property
-	def input_fn_walk(self):
-		return lambda: tf.data.Dataset.from_generator(
-			lambda: self.generate_walks(),
+
+	def gen_dataset_walk(self, batch_size, limit=None):
+		return tf.data.Dataset.from_generator(
+			lambda: self.gen_walk(batch_size, limit),
 			self.dataset_dtype,
 			self.dataset_size
-		)
-	
+		).batch(batch_size)
 
 
-	def gen_input_fn(self, batch_size=None, limit=None):
-
+	def gen_dataset_rand(self, batch_size, limit=None):
 		if limit is None:
 			limit = len(self.data)
-
-		if batch_size is None:
-			batch_size = self.args.batch_size
 
 		d = tf.data.Dataset.from_generator(
 			lambda: (i for i in self.data[:limit]),
@@ -227,13 +199,18 @@ class GraphData(object):
 		d = d.shuffle(len(self), reshuffle_each_iteration=self.args.shuffle_batch)
 		d = d.repeat(self.args.data_passes_per_epoch)
 		d = d.batch(batch_size)
-
 		return d
+
+
 
 	# This is a little syntactic sugar so the caller can pass input_fn directly into Estimator.train()
 	@property
 	def input_fn(self):
-		return lambda: self.gen_input_fn()
+		return lambda: self.gen_dataset_rand(self.args.batch_size)
+
+	@property
+	def input_fn_walk(self):
+		return lambda: self.gen_dataset_walk(self.args.batch_size)
 
 	@property
 	def dataset_dtype(self):
@@ -249,7 +226,7 @@ class GraphData(object):
 				}, 
 				"review_score": tf.float32
 			}, 
-			(tf.float32)
+			tf.float32
 		)
 
 	@property
@@ -266,8 +243,12 @@ class GraphData(object):
 				}, 
 				"review_score": tf.TensorShape([]) 
 			}, 
-			( tf.TensorShape([]) )
+			tf.TensorShape([])
 		)
+
+
+
+
 
 
 	# --------------------------------------------------------------------------
@@ -286,6 +267,7 @@ class GraphData(object):
 		return len(self.data)
 
 	def write_labels(self, output_dir, prefix):
+		"""Write the labels for Tensorboard projector"""
 
 		nouns = ["product", "person"]
 		header = "Class\tId\n"
@@ -330,6 +312,40 @@ class GraphData(object):
 				config_file.write("  metadata_path: './"+prefix+"_"+noun+"_labels.tsv'")
 
 			config_file.write("}")
+
+
+	def join_batch(self, batch):
+		"""Turn a list of dict into a dict of lists"""
+
+		dest = {
+			"person": {
+				"id": [],
+				"style": []
+			},
+			"product": {
+				"id": [],
+				"style": []
+			},
+			"review_score": [],
+		}
+
+		def extract(d, path):
+			"""Get the value at `path` in a recursive dict"""
+			if path == []:
+				return d
+			else:
+				return extract(d[path[0]], path[1:])
+
+
+		def gather(batch, dest, path=[]):
+			"""Recursively traverse dictionary, then fill each list with elements from batch"""
+			for k, v in dest.items():
+				if instanceof(v, dict):
+					gather(batch, v, path + [k])
+				elif instanceof(v, list):
+					v.extend([extract(i, path) for i in batch])
+				else:
+					raise Exception("Unexpected element in destination " + k)
 
 
 

@@ -26,7 +26,7 @@ class GeneticParam(object):
   
   @property
   def value(self):
-    return self.v    
+    return self.v  
 
 
 
@@ -135,7 +135,7 @@ class VariableParam(InitableParam):
     return VariableParam(copy.copy(self.v))
   
   def __str__(self):
-    return ""
+    return str(self.v.values())
   
 
 

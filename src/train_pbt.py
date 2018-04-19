@@ -3,33 +3,36 @@ import traceback
 import argparse
 import os.path
 
+import logging
+logging.basicConfig()
+
 import tensorflow as tf
 import numpy as np
 
 from .args import get_args
 from .data import GraphData
-# from .model_pbt import model_fn
-from .model import model_fn
+from .model_pbt import model_fn
 
 from .pbt_schedule import *
 from .pbt_param import *
 from .pbt import Supervisor
 from .estimator_worker import EstimatorWorker
 
-
 def gen_param_spec(args):
 	return {
-		# "lr": FixedParamOf(args.lr), #LRParam,
-		# "embedding_width": FixedParamOf(args.embedding_width),
-		# "batch_size": lambda: IntParam(pow(10, random.uniform(0,3))),
-		# "vars": VariableParam,
-		"heritage": Heritage,
-		"model_id": ModelId,
 		"macro_step": FixedParamOf(args.macro_step),
 		"micro_step": FixedParamOf(args.micro_step),
-		# "n_train": FixedParamOf(None), #lambda: IntParam(random.randint(3, 10000), 1, 10000),
+
+		"vars": VariableParam,
+		"heritage": Heritage,
+		"model_id": ModelId,
+
+		# "lr": FixedParamOf(args.lr), #LRParam,
+		"embedding_width": IntParamOf(args.embedding_width),
+		"batch_size": lambda: IntParam(pow(10, random.uniform(0,3)), 1, 1024),
+		"n_train": lambda: IntParam(random.randint(3, 10000), 1, 10000),
 		# "n_val": FixedParamOf(None), #lambda: IntParam(random.randint(3, 1000), 1, 1000),
-		"cluster_factor": lambda: MulParam(0.0, 0.0, 1.0),
+		# "cluster_factor": lambda: MulParam(0.0, 0.0, 1.0),
 		# "n_cluster": FixedParamOf(6),
 	}
 
@@ -47,8 +50,8 @@ def gen_worker_init_params(args):
 	worker_init_params = {
 		"model_fn": model_fn, 
 		"estimator_params": estimator_params, 
-		"train_input_fn": lambda params: data_train.input_fn, # lambda params: lambda: data_train.gen_input_fn(args["batch_size"].value, args["n_train"].value), 
-		"eval_input_fn": lambda params: data_test.input_fn,   # lambda params: lambda: data_test.gen_input_fn(args["batch_size"].value, args["n_val"].value),
+		"train_input_fn": lambda params: lambda: data_train.gen_dataset_walk(params["batch_size"].value, params["n_train"].value), 
+		"eval_input_fn":  lambda params: lambda: data_test.gen_dataset_walk(params["batch_size"].value),
 		"model_dir": args.model_dir
 	}
 

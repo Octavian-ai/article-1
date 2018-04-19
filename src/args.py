@@ -22,9 +22,11 @@ def get_args(args=None):
 	parser.add_argument('--data-passes-per-epoch',	type=int, default=20)
 	parser.add_argument('--shuffle-batch',			type=bool, default=True)
 	parser.add_argument('--batch-size', 			type=int, default=32)
-	parser.add_argument('--embedding-width', 		type=int, default=82)
+	parser.add_argument('--embedding-width', 		type=int, default=20)
 	parser.add_argument('--n-clusters', 			type=int, default=6)
-	parser.add_argument('--n-workers', 				type=int, default=10)
+	parser.add_argument('--n-workers', 				type=int, default=30)
+	parser.add_argument('--n-train', 				type=int, default=9000)
+
 
 	parser.add_argument('--lr',						type=float, default=0.103557887)
 	parser.add_argument('--cluster-factor',			type=float, default=0.0)

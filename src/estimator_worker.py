@@ -24,16 +24,16 @@ def resize_and_load(var, val, sess):
     if delta < 0:
       val = val[:,:o_shape[1]]
     elif delta > 0:
-      val = np.pad(val, ((0,0),(0, delta)), 'mean')
+      val = np.pad(val, ((0,0),(0, delta)), 'reflect')
 
     v.load(val, self.sess)
 
 
 def gen_scaffold(params):
   def init_fn(scaffold, session):
-    tf.logging.info("Running Scaffold init_fn")
+    tf.logging.info("Running Scaffold init_fn", params)
 
-    vs = params["vars"].value
+    vs = params["vars"]
 
     if vs is not None: 
       for var in tf.trainable_variables():
@@ -42,7 +42,8 @@ def gen_scaffold(params):
           val = vs[var.name]
           resize_and_load(var, val, session)
 
-  return tf.train.Scaffold(init_fn=lambda scaffold, session: True)
+  # return tf.train.Scaffold(init_fn=lambda scaffold, session: True)
+  return tf.train.Scaffold(init_fn=init_fn)
 
 
 
@@ -75,22 +76,21 @@ class EstimatorWorker(Worker):
 
 
   def setup_estimator(self):
-
     model_dir = os.path.join(self.init_params["model_dir"], self._params["model_id"].value["cur"])
     warm_start = None
 
-    try:
-      if self._params["model_id"].value["warm_start_from"] is not None:
-        warm_start = os.path.join(
-          self.init_params["model_dir"], 
-          self._params["model_id"].value["warm_start_from"])
+    # try:
+    #   if self._params["model_id"].value["warm_start_from"] is not None:
+    #     warm_start = os.path.join(
+    #       self.init_params["model_dir"], 
+    #       self._params["model_id"].value["warm_start_from"])
       
 
-    except Exception as e:
-      traceback.print_exc()
-      print(self._params)
-      model_dir = None
-      warm_start = None
+    # except Exception as e:
+    #   traceback.print_exc()
+    #   print(self._params)
+    #   model_dir = None
+    #   warm_start = None
 
     # model_dir = self.init_params["model_dir"] + str(uuid.uuid1())
 
@@ -121,7 +121,8 @@ class EstimatorWorker(Worker):
     self._params["vars"] = VariableParam(vals)
     
   @property
-  def params(self):    
+  def params(self):  
+    self.extract_vars()  
     return self._params;
     
   @params.setter
