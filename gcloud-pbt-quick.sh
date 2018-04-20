@@ -1,5 +1,4 @@
 
-
 USER="dmack"
 JOB_NAME="article1_$(date +%Y%m%d_%H%M%S)"
 BUCKET_NAME="octavian-training"
