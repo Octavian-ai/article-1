@@ -134,29 +134,42 @@ class Ploty(object):
         artists.append(lgd)
         
     try:
-        os.remove(self.file_path)
+        os.remove(self.png_file_path)
     except FileNotFoundError:
         pass
         
-    with FileWritey(self.args, self.filename, True) as file:
+    with FileWritey(self.args, self.png_filename, True) as file:
       plt.savefig(file, bbox_extra_artists=artists, bbox_inches='tight')
-      logger.info("Saved image: " + self.file_path)
+      logger.info("Saved image: " + self.png_file_path)
     
     if not self.terminal:
 	    plt.show()
 
   @property
-  def filename(self):
+  def csv_filename(self):
+    return self.title.replace(" ", "_") + '.csv'
+
+  @property
+  def png_filename(self):
     return self.title.replace(" ", "_") + '.csv'
   
   @property
-  def file_path(self):
-    return os.path.join(self.args.output_dir, self.filename)
+  def csv_file_path(self):
+    return os.path.join(self.args.output_dir, self.csv_filename)
+
+  @property
+  def png_file_path(self):
+    return os.path.join(self.args.output_dir, self.csv_filename)
+
+  @property
+  def is_png_enabled(self):
+    return 'matplotlib' in sys.modules
+  
 
   def write(self):
     self.save_csv()
 
-    if 'matplotlib' in sys.modules:
+    if self.is_png_enabled:
       self.render()
 
 
@@ -164,11 +177,11 @@ class Ploty(object):
   
   def save_csv(self):
     try:
-      os.remove(self.file_path)
+      os.remove(self.csv_file_path)
     except FileNotFoundError:
       pass
     
-    with FileWritey(self.args, self.filename) as csvfile:
+    with FileWritey(self.args, self.csv_filename) as csvfile:
       writer = csv.writer(csvfile)
       writer.writerow(self.header)
       
@@ -179,7 +192,7 @@ class Ploty(object):
           ]
           writer.writerow(row)
 
-    logger.info("Saved CSV: " + self.file_path)
+    logger.info("Saved CSV: " + self.csv_file_path)
     
   
   def copy_to_drive(self, snapshot=False):   

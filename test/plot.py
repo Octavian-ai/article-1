@@ -12,12 +12,10 @@ from .env import *
 
 class PlotTestCase(unittest.TestCase):
 
-	def test_basics(self):
-		test_args = gen_args()
-		ploty = Ploty(test_args, 'test_basics')
-
+	def run_ploty_test(self, ploty):
 		try:
-			os.remove(ploty.file_path)
+			os.remove(ploty.csv_file_path)
+			os.remove(ploty.png_file_path)
 		except FileNotFoundError:
 			pass
 
@@ -26,25 +24,21 @@ class PlotTestCase(unittest.TestCase):
 
 		ploty.write()
 
-		self.assertTrue(os.path.isfile(ploty.file_path))
+		self.assertTrue(os.path.isfile(ploty.csv_file_path))
+
+		if ploty.is_png_enabled:
+			self.assertTrue(os.path.isfile(ploty.png_file_path))
+
+
+	def test_basics(self):
+		test_args = gen_args()
+		ploty = Ploty(test_args, 'test_basics')
+		self.run_ploty_test(ploty)
 
 	def test_gcs(self):
 		test_args = gen_args('octavian-test', 'unittest')
 		ploty = Ploty(test_args, 'test_gcs')
-
-		try:
-			os.remove(ploty.file_path)
-		except FileNotFoundError:
-			pass
-
-		for i in range(10):
-			ploty.add_result(i, i, 'id')
-
-		
-		ploty.write()
-
-		self.assertTrue(os.path.isfile(ploty.file_path))
-
+		self.run_ploty_test(ploty)
 
 
 
