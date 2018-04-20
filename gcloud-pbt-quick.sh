@@ -23,4 +23,4 @@ gcloud ml-engine jobs submit training "$JOB_NAME" \
     --n-workers 2 \
     --micro-step 1 \
     --macro-step 1 \
-    --epochs 2 \
+    --epochs 5 \

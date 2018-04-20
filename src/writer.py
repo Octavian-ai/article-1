@@ -16,10 +16,11 @@ except ImportError as e:
 class FileWritey(object):
   """Tries to write on traditional filesystem and Google Cloud storage"""
 
-  def __init__(self, args, filename):
+  def __init__(self, args, filename, binary=False):
     self.args = args
     self.filename = filename
     self.trad_file = None
+    self.open_str = "wb" if binary else "w" 
 
   def copy_to_bucket(self):
     if 'google.cloud' in sys.modules and self.args.bucket is not None and self.args.gcs_dir is not None:
@@ -30,7 +31,7 @@ class FileWritey(object):
 
   def __enter__(self):
     os.makedirs(self.args.output_dir, exist_ok=True)
-    self.trad_file = open(os.path.join(self.args.output_dir, self.filename), 'w')
+    self.trad_file = open(os.path.join(self.args.output_dir, self.filename), self.open_str)
     return self.trad_file
 
   def __exit__(self, type, value, traceback):

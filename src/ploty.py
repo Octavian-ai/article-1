@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 try:
   import matplotlib
   matplotlib.use("Agg") # Work in terminal
-
-  from IPython.display import clear_output
   from matplotlib import pyplot as plt
+  # from IPython.display import clear_output
 except ImportError as e:
-  logger.warn("Could not import matplotlib, no graphs will be generated")
+  logger.warn("Could not import matplotlib, no graphs will be generated; " + str(e))
   pass
 
 
@@ -30,7 +29,7 @@ try:
   from googleapiclient.discovery import build
   from googleapiclient.http import MediaFileUpload
 except ImportError as e:
-  logger.warn("Could not import googleapiclient, will not save to google drive")
+  logger.warn("Could not import googleapiclient, will not save to google drive; " + str(e))
   pass
 
 
@@ -110,6 +109,11 @@ class Ploty(object):
       print('{{"metric": "{}", "value": {}, "x": {} }}'.format(name,y,x))
 
 
+  def render_pre(self):
+    # if self.clear_screen and not self.terminal:
+      # clear_output()
+
+    plt.cla()
   
   def render(self):
     self.render_pre()
@@ -118,13 +122,6 @@ class Ploty(object):
       plt.plot(d['x'], d['y'], d["l"]+d["m"], label=k)
       
     self.render_post()
-      
-      
-  def render_pre(self):
-    if self.clear_screen and not self.terminal:
-      clear_output()
-
-    plt.cla()
     
   def render_post(self):
     self.fig.suptitle(self.title, fontsize=14, fontweight='bold')
@@ -141,7 +138,7 @@ class Ploty(object):
     except FileNotFoundError:
         pass
         
-    with FileWritey(self.args, self.filename) as file:
+    with FileWritey(self.args, self.filename, True) as file:
       plt.savefig(file, bbox_extra_artists=artists, bbox_inches='tight')
       logger.info("Saved image: " + self.file_path)
     
