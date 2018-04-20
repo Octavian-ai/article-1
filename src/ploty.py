@@ -34,7 +34,7 @@ except ImportError as e:
   pass
 
 
-from .writer import TextWritey
+from .writer import FileWritey
 from .decorator import debounce
 
 class Ploty(object):
@@ -127,25 +127,23 @@ class Ploty(object):
     plt.cla()
     
   def render_post(self):
-    img_name = self.args.output_dir + '/' + self.title.replace(" ", "_") + '.png'
-    
-    artists = []
-
     self.fig.suptitle(self.title, fontsize=14, fontweight='bold')
     self.ax.set_xlabel(self.label_x)
     self.ax.set_ylabel(self.label_y)
     
+    artists = []
     if self.legend:
         lgd = plt.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
         artists.append(lgd)
         
     try:
-        os.remove(img_name)
+        os.remove(self.file_path)
     except FileNotFoundError:
         pass
         
-    plt.savefig(img_name, bbox_extra_artists=artists, bbox_inches='tight')
-    logger.info("Saved image: " + img_name)
+    with FileWritey(self.args, self.filename) as file:
+      plt.savefig(file, bbox_extra_artists=artists, bbox_inches='tight')
+      logger.info("Saved image: " + self.file_path)
     
     if not self.terminal:
 	    plt.show()
@@ -173,7 +171,7 @@ class Ploty(object):
     except FileNotFoundError:
       pass
     
-    with TextWritey(self.args, self.filename) as csvfile:
+    with FileWritey(self.args, self.filename) as csvfile:
       writer = csv.writer(csvfile)
       writer.writerow(self.header)
       

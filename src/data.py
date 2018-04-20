@@ -149,7 +149,9 @@ class GraphData(object):
 				return l[:n]
 
 		for noun in nouns:
-			for obj_id, rows in limit_items(self.indexed_data[noun].items(), limit):
+			for obj_id in limit_items(list(self.indexed_data[noun].keys()), limit):
+				rows = self.indexed_data[noun][obj_id]
+
 				if len(rows) > 0:
 					batch = []
 					

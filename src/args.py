@@ -30,7 +30,6 @@ def get_args(args=None):
 
 	parser.add_argument('--lr',						type=float, default=0.103557887)
 	parser.add_argument('--cluster-factor',			type=float, default=0.0)
-	parser.add_argument('--cluster-factor-decay',	action='store_true')
 
 
 	return parser.parse_args(args)

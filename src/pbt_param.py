@@ -14,7 +14,7 @@ class GeneticParam(object):
     """Initialise with randomly sampled value"""
     pass
   
-  def mutate(self, heat):
+  def mutate(self, heat=1.0):
     """Return copy of this param with mutated value"""
     pass
   
@@ -34,7 +34,7 @@ class FixedParam(GeneticParam):
   def __init__(self,v=None):
     self.v = v
     
-  def mutate(self, heat):
+  def mutate(self, heat=1.0):
     return self
 
   def __str__(self):
@@ -47,6 +47,8 @@ def FixedParamOf(v):
 class InitableParam(GeneticParam):
     def __init__(self,v=None):
         self.v = v
+
+
     
 
 
@@ -60,8 +62,8 @@ class MulParam(InitableParam):
   def value(self):
     return min(max(self.v, self.min), self.max)
 
-  def mutate(self, heat):
-    return MulParam(self.value * random.uniform(0.8/heat, 1.2*heat) + random.gauss(0.0, heat*0.1), self.min, self.max)
+  def mutate(self, heat=1.0):
+    return type(self)(self.value * random.uniform(0.8/heat, 1.2*heat) + random.gauss(0.0, heat*0.1), self.min, self.max)
 
 def MulParamOf(v, min=-10000, max=10000):
   return lambda: MulParam(v, min, max)
@@ -71,10 +73,13 @@ def MulParamOf(v, min=-10000, max=10000):
 class IntParam(MulParam):
     @property
     def value(self):
-        return round(min(max(self.v, self.min), self.max))
+      return round(min(max(self.v, self.min), self.max))
 
 def IntParamOf(v, min=1, max=1000):
   return lambda: IntParam(v, min, max)
+
+def RandIntParamOf(min, max):
+  return lambda: IntParam(random.randint(min, max), min, max)
 
 
 
@@ -83,8 +88,8 @@ class LRParam(GeneticParam):
     sample = pow(10, random.uniform(-4, 2))
     self.v = v if v is not None else sample
     
-  def mutate(self, heat):
-    return LRParam(self.v * pow(10, heat*random.uniform(-0.5,0.5)))
+  def mutate(self, heat=1.0):
+    return type(self)(self.v * pow(10, heat*random.uniform(-0.5,0.5)))
   
 
 
@@ -96,8 +101,8 @@ class Heritage(GeneticParam):
     def __init__(self, v=""):
         self.v = v + self.vend()
     
-    def mutate(self, heat):
-        return Heritage(self.v)
+    def mutate(self, heat=1.0):
+        return type(self)(self.v)
 
 
 
@@ -114,7 +119,7 @@ class ModelId(GeneticParam):
       }
   
   def mutate(self, heat):
-      return ModelId(self.v)
+      return type(self)(self.v)
     
 
 
@@ -131,7 +136,7 @@ class VariableParam(InitableParam):
     
     return True
   
-  def mutate(self, heat):
+  def mutate(self, heat=1.0):
     return VariableParam(copy.copy(self.v))
   
   def __str__(self):
@@ -149,12 +154,12 @@ class OptimizerParam(GeneticParam):
     ]
     self.v = v if v is not None else random.choice(self.choices)
     
-  def mutate(self, heat):
+  def mutate(self, heat=1.0):
     o = self.value
     
     if random.random() > 1 - 0.2*heat:
       o = random.choice(self.choices)
     
-    return OptimizerParam(o)
+    return type(self)(o)
 
 

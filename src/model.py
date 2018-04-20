@@ -16,9 +16,10 @@ def model_fn(features, labels, mode, params):
 	nouns = ["person", "product"]
 	hidden = {}
 	embeddings = {}
-	cluster = {}
-	cluster_dist = {}
-	cluster_loss = {}
+	
+	# cluster = {}
+	# cluster_dist = {}
+	# cluster_loss = {}
 
 	for noun in nouns:
 		hidden[noun] = tf.get_variable(noun, [params["n_"+noun],  params["embedding_width"]])
@@ -26,9 +27,9 @@ def model_fn(features, labels, mode, params):
 		embeddings[noun] = emb
 
 		# K-Means
-		cluster[noun] = tf.get_variable(noun+"_cluster", [params["n_clusters"],  params["embedding_width"]])
-		cluster_dist[noun] = tf.reduce_sum(tf.square(tf.expand_dims(cluster[noun], 0) - tf.expand_dims(emb, 1)), axis=-1)
-		cluster_loss[noun] = tf.reduce_min(cluster_dist[noun], axis=-1)
+		# cluster[noun] = tf.get_variable(noun+"_cluster", [params["n_clusters"],  params["embedding_width"]])
+		# cluster_dist[noun] = tf.reduce_sum(tf.square(tf.expand_dims(cluster[noun], 0) - tf.expand_dims(emb, 1)), axis=-1)
+		# cluster_loss[noun] = tf.reduce_min(cluster_dist[noun], axis=-1)
 		
 
 	# Compute the dot-product of the embedded vectors
@@ -71,8 +72,8 @@ def model_fn(features, labels, mode, params):
 			"emb_loss": tf.metrics.mean_squared_error(pred_review_score, label_review_score),
 		}
 
-		for noun in nouns:
-			tf.summary.histogram(noun+"_cluster", cluster[noun])
+		# for noun in nouns:
+			# tf.summary.histogram(noun+"_cluster", cluster[noun])
 
 		train_op = tf.train.AdamOptimizer(params["lr"]).minimize(loss=loss, global_step=tf.train.get_global_step())
 
@@ -104,7 +105,7 @@ def model_fn(features, labels, mode, params):
 			for prop in ["id", "style"]:
 				predictions[noun+"_"+prop] = features[noun][prop]
 
-			predictions[noun+"_cluster_class"] =  tf.nn.softmax(cluster_dist[noun])
+			# predictions[noun+"_cluster_class"] =  tf.nn.softmax(cluster_dist[noun])
 
 
 		return tf.estimator.EstimatorSpec(

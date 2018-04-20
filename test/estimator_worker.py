@@ -67,7 +67,7 @@ class EstimatorWorkerTestCase(unittest.TestCase):
 		self.assertDictAlmostEqual(worker1.results, worker2.results, msg="Evaluation after param copy should be the same")
 		
 
-	def test_change_model(self):
+	def test_change_variable_shape(self):
 
 		hp = gen_param_spec(test_args)
 		hp["embedding_width"] = FixedParamOf(80)
@@ -87,6 +87,17 @@ class EstimatorWorkerTestCase(unittest.TestCase):
 		worker1.eval()
 
 		# The test is that this does not crash!
+
+	def test_mutate(self):
+
+		worker = self.vend_worker()
+
+		for i in range(10):
+			worker.step(1)
+			worker.eval()
+			worker.params = worker.explore(1.0)
+
+		# Didn't crash = success
 
 
 if __name__ == '__main__':	

@@ -11,6 +11,7 @@ import os.path
 import collections
 import logging
 import sys
+import math
 
 from .ploty import Ploty
 
@@ -85,7 +86,6 @@ class Worker(object):
 	
 
 	def save(self, path):
-		# os.makedirs(path, exist_ok=True)
 		with open(path, 'wb') as file:
 			pickle.dump(self, file)
 
@@ -319,7 +319,7 @@ class Supervisor(object):
 		random.shuffle(stack) # Tie-break randomly
 		stack = sorted(stack, key=self.score)
 		
-		n20 = round(len(stack)*0.2)
+		n20 = max(math.ceil(len(stack)*0.2), 1)
 		top20 = stack[-n20:]
 		bottom20 = stack[:n20]
 		

@@ -30,7 +30,7 @@ def gen_param_spec(args):
 		# "lr": FixedParamOf(args.lr), #LRParam,
 		"embedding_width": IntParamOf(args.embedding_width),
 		"batch_size": lambda: IntParam(pow(10, random.uniform(0,3)), 1, 1024),
-		"n_train": lambda: IntParam(random.randint(3, 10000), 1, 10000),
+		"n_train": lambda: IntParam(random.randint(1, 300), 1, 300),
 		# "n_val": FixedParamOf(None), #lambda: IntParam(random.randint(3, 1000), 1, 1000),
 		# "cluster_factor": lambda: MulParam(0.0, 0.0, 1.0),
 		# "n_cluster": FixedParamOf(6),
