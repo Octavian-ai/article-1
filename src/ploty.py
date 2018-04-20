@@ -151,7 +151,7 @@ class Ploty(object):
 
   @property
   def png_filename(self):
-    return self.title.replace(" ", "_") + '.csv'
+    return self.title.replace(" ", "_") + '.png'
   
   @property
   def csv_file_path(self):
@@ -159,7 +159,7 @@ class Ploty(object):
 
   @property
   def png_file_path(self):
-    return os.path.join(self.args.output_dir, self.csv_filename)
+    return os.path.join(self.args.output_dir, self.png_filename)
 
   @property
   def is_png_enabled(self):
