@@ -20,6 +20,7 @@ settings = {
 	}
 }
 
+# Reduce code duplication throughout these methods
 nouns = ["person", "product"]
 
 class GraphData(object):
@@ -63,10 +64,6 @@ class GraphData(object):
 			self.settings["neo4j_url"], 
 			auth=(self.settings["neo4j_user"], self.settings["neo4j_password"]))
 
-		self.person_ids = person_ids
-		self.product_ids = product_ids
-
-		# Let's start reducing copy-pasted logic
 		self.ids = {
 			"person": person_ids,
 			"product": product_ids
@@ -88,27 +85,15 @@ class GraphData(object):
 				i["review_score"]	
 			)
 
-			# return (
-			# 			( 
-			# 				self._get_index(i, "person"), 
-			# 				self._get_index(i, "product"),
-			# 				i["person_style"],
-			# 		  		i["product_style"],
-			# 		  		i["review_score"], # For prediction debugging convenience. Not used for training
-			# 			), 
-			# 		  	( 
-			# 		  		i["review_score"]
-			# 		  	)
-			# 		 )
-
-
 		with driver.session() as session:
 			self.raw_data = session.run(self.query, **self.query_params).data()
 			data = [ data_to_vec(i) for i in self.raw_data ]
 
+			# Remove any ordering biases from the database
 			random.seed(123)
 			random.shuffle(data)
 
+			# Index the rows by person_id and _product_id
 			self.indexed_data = {}
 			for noun in nouns:
 				self.indexed_data[noun] = {
@@ -118,18 +103,17 @@ class GraphData(object):
 					for k in self.ids[noun]
 				}
 
-
 			self.data = data
 
-
-	
 
 
 	# --------------------------------------------------------------------------
 	# Input functions
 	# --------------------------------------------------------------------------
 	
-	def gen_walk(self, batch_size, limit):
+
+	def gen_walk(self, batch_size):
+		"""Generate random walks across our graph."""
 
 		def next_noun(prev):
 			found_prev = False
@@ -142,14 +126,8 @@ class GraphData(object):
 			# Loop back to start
 			return nouns[0]
 
-		def limit_items(l, n):
-			if n is None or n > len(l):
-				return l
-			else:
-				return l[:n]
-
 		for noun in nouns:
-			for obj_id in limit_items(list(self.indexed_data[noun].keys()), limit):
+			for obj_id in self.indexed_data[noun].keys():
 				rows = self.indexed_data[noun][obj_id]
 
 				if len(rows) > 0:
@@ -168,10 +146,10 @@ class GraphData(object):
 						else:
 							break
 
-					# Random rows to pad - seems to never happen
+					# If we somehow indexed into a dead end above (highly unlikely) then
+					# pad the rest of the batch with random rows
 					while len(batch) < batch_size:
 						batch.append(random.choice(self.data))
-						noun_to_join = next_noun(noun)
 
 					for b in batch:
 						yield b
@@ -179,35 +157,36 @@ class GraphData(object):
 	
 	
 
-	def gen_dataset_walk(self, batch_size, limit=None):
+	def gen_dataset_walk(self, batch_size):
 		return tf.data.Dataset.from_generator(
-			lambda: self.gen_walk(batch_size, limit),
+			lambda: self.gen_walk(batch_size),
 			self.dataset_dtype,
 			self.dataset_size
 		).batch(batch_size)
 
 
-	def gen_dataset_rand(self, batch_size, limit=None):
-		if limit is None:
-			limit = len(self.data)
-
-		d = tf.data.Dataset.from_generator(
-			lambda: (i for i in self.data[:limit]),
+	def gen_dataset_rand(self, batch_size):
+		return tf.data.Dataset.from_generator(
+			lambda: (i for i in self.data),
 			self.dataset_dtype,
 			self.dataset_size
 		)
+		.shuffle(len(self))
+		.batch(batch_size)
 
-		# d = d.apply(tf.contrib.data.shuffle_and_repeat(len(self), self.args.data_passes_per_epoch))
-		d = d.shuffle(len(self), reshuffle_each_iteration=self.args.shuffle_batch)
-		d = d.repeat(self.args.data_passes_per_epoch)
-		d = d.batch(batch_size)
-		return d
 
 
 
 	# This is a little syntactic sugar so the caller can pass input_fn directly into Estimator.train()
 	@property
 	def input_fn(self):
+		if self.args.use_random_walk:
+			return self.input_fn_walk
+		else:
+			return self.input_fn_rand
+
+	@property
+	def input_fn_rand(self):
 		return lambda: self.gen_dataset_rand(self.args.batch_size)
 
 	@property
@@ -250,105 +229,19 @@ class GraphData(object):
 
 
 
-
-
-
 	# --------------------------------------------------------------------------
 	# Utilities
 	# --------------------------------------------------------------------------
 	
 	@property
 	def n_person(self):
-		return len(self.person_ids)
+		return len(self.ids["person"])
 
 	@property
 	def n_product(self):
-		return len(self.product_ids)
+		return len(self.ids["product"])
 
 	def __len__(self):
 		return len(self.data)
-
-	def write_labels(self, output_dir, prefix):
-		"""Write the labels for Tensorboard projector"""
-
-		nouns = ["product", "person"]
-		header = "Class\tId\n"
-
-		def format_row(index, db, noun):
-			if index in db:
-				style = db[index][noun+"_style"]
-				idd = db[index][noun+"_id"]
-
-				# One higher than we'd otherwise output
-				cls = len(style)
-
-				for idx, val in enumerate(style):
-					if val == 1.0:
-						cls = idx
-						break
-
-				return "{}\t{}\n".format(cls, idd)
-			else:
-				return "\t\n"
-
-
-		for noun in nouns:
-			ordered = {}
-
-			for i in self.raw_data:
-				ordered[self._get_index(i, noun)] = i
-				
-			with open(os.path.join(output_dir, prefix+"_"+noun+"_labels.tsv"), 'w') as label_file:
-				label_file.write(header)
-
-				for i in range(len(ordered)):
-					label_file.write(format_row(i, ordered, noun))
-
-
-		# Easier than the TF many lines of setup
-		with open(os.path.join(output_dir, "projector_config.pbtext"), 'w') as config_file:
-			config_file.write("embeddings {")
-
-			for noun in nouns:
-				config_file.write(" tensor_name: '"+noun+"'")
-				config_file.write("  metadata_path: './"+prefix+"_"+noun+"_labels.tsv'")
-
-			config_file.write("}")
-
-
-	def join_batch(self, batch):
-		"""Turn a list of dict into a dict of lists"""
-
-		dest = {
-			"person": {
-				"id": [],
-				"style": []
-			},
-			"product": {
-				"id": [],
-				"style": []
-			},
-			"review_score": [],
-		}
-
-		def extract(d, path):
-			"""Get the value at `path` in a recursive dict"""
-			if path == []:
-				return d
-			else:
-				return extract(d[path[0]], path[1:])
-
-
-		def gather(batch, dest, path=[]):
-			"""Recursively traverse dictionary, then fill each list with elements from batch"""
-			for k, v in dest.items():
-				if instanceof(v, dict):
-					gather(batch, v, path + [k])
-				elif instanceof(v, list):
-					v.extend([extract(i, path) for i in batch])
-				else:
-					raise Exception("Unexpected element in destination " + k)
-
-
 
 

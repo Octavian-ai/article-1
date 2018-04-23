@@ -13,5 +13,4 @@ name = "pypi"
 
 tensorflow = "==1.6"
 numpy = "*"
-google-cloud = "*"
 "neo4j-driver" = "*"
