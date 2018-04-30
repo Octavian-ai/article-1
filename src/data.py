@@ -170,8 +170,8 @@ class GraphData(object):
 			lambda: (i for i in self.data),
 			self.dataset_dtype,
 			self.dataset_size
-		)
-		.shuffle(len(self))
+		) \
+		.shuffle(len(self)) \
 		.batch(batch_size)
 
 
