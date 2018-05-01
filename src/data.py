@@ -164,8 +164,6 @@ class GraphData(object):
 		).shuffle(len(self)).batch(batch_size)
 
 
-
-
 	# This is a little syntactic sugar so the caller can pass input_fn directly into Estimator.train()
 	@property
 	def input_fn(self):
