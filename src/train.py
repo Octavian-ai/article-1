@@ -60,9 +60,9 @@ def train(args):
 	# I just include this code as a stub to show how to export the model for serving.
 	# If you have success or code alterations please let me know / submit a pull request!
 	estimator.export_savedmodel(
-    	os.path.join(args.output_dir, "export"),
-    	serving_input_receiver_fn
-    )
+		os.path.join(args.output_dir, "export"),
+		serving_input_receiver_fn
+	)
 
 
 if __name__ == '__main__':
