@@ -10,13 +10,18 @@ import numpy as np
 from .args import get_args
 from .data import GraphData
 from .model import model_fn
+from .serving import serving_input_receiver_fn
 
 
 def train(args):
 
-	# Make our folders
+	# Setup model dir - if you're doing a single run we'll use a consistent directory so you can reload it
 	data_method = "random_walk" if args.use_random_walk else "random_rows"
-	model_dir = os.path.join(args.output_dir, data_method, str(datetime.now()))
+	if args.runs > 1:
+		model_dir = os.path.join(args.output_dir, data_method, str(datetime.now()))
+	else:
+		model_dir = os.path.join(args.output_dir, data_method, "main")
+
 	os.makedirs(model_dir, exist_ok=True)
 
 	# --------------------------------------------------------------------------
@@ -49,6 +54,15 @@ def train(args):
 	train_spec = tf.estimator.TrainSpec(input_fn=data_train.input_fn, max_steps=args.max_steps)
 	eval_spec  = tf.estimator.EvalSpec(input_fn=data_eval.input_fn, steps=None)
 	tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
+
+
+	# Admission from DM: I've not had time to test the exported model in a server, 
+	# I just include this code as a stub to show how to export the model for serving.
+	# If you have success or code alterations please let me know / submit a pull request!
+	estimator.export_savedmodel(
+    	os.path.join(args.output_dir, "export"),
+    	serving_input_receiver_fn
+    )
 
 
 if __name__ == '__main__':

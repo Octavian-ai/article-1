@@ -19,7 +19,7 @@ def model_fn(features, labels, mode, params):
 
 	for noun in nouns:
 		hidden[noun] = tf.get_variable(noun, [params["n_"+noun],  params["embedding_width"]])
-		emb  = tf.nn.embedding_lookup(hidden[noun], features[noun]["id"])
+		emb  = tf.nn.embedding_lookup(hidden[noun], features[noun+"_id"])
 		embeddings[noun] = emb
 
 	# Compute the dot-product of the embedded vectors
@@ -60,7 +60,7 @@ def model_fn(features, labels, mode, params):
 			mode, 
 			loss=loss, 
 			train_op=train_op, 
-			eval_metric_ops=eval_metric_ops
+			eval_metric_ops=eval_metric_ops,
 		)
 
 	# --------------------------------------------------------------------------
@@ -68,13 +68,21 @@ def model_fn(features, labels, mode, params):
 
 	if mode == tf.estimator.ModeKeys.PREDICT:
 
+		single_prediction = tf.squeeze(pred_review_score, -1)
+
 		predictions = {
-			"review_score": tf.squeeze(pred_review_score, -1),
+			"review_score": single_prediction,
+		}
+
+		export_outputs = {
+			"review_score": tf.estimator.export.PredictOutput(single_prediction),
 		}
 
 		return tf.estimator.EstimatorSpec(
 			mode, 
-			predictions=predictions)
+			predictions=predictions,
+			export_outputs=export_outputs,
+		)
 
 	
 	# --------------------------------------------------------------------------

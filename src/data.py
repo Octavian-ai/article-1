@@ -48,8 +48,6 @@ class GraphData(object):
 			RETURN 
 				person.id as person_id, 
 				product.id as product_id, 
-				person.style_preference as person_style,
-				product.style as product_style,
 				review.score as review_score
 		"""
 
@@ -72,15 +70,8 @@ class GraphData(object):
 
 		def data_to_vec(i):
 			return ({
-					"person": {
-						"id": self._get_index(i, "person"),
-						"style": i["person_style"],
-					},
-					"product": {
-						"id": self._get_index(i, "product"),
-						"style": i["product_style"],
-					}, 
-					"review_score": i["review_score"],
+					"person_id": self._get_index(i, "person"),
+					"product_id": self._get_index(i, "product"),
 				}, 
 				i["review_score"]	
 			)
@@ -137,7 +128,7 @@ class GraphData(object):
 					noun_to_join = next_noun(noun)
 
 					while len(batch) < batch_size:
-						next_id = batch[-1][0][noun_to_join]["id"]
+						next_id = batch[-1][0][noun_to_join+"_id"]
 						next_rows = self.indexed_data[noun_to_join].get(next_id, [])
 
 						if len(next_rows) > 0:
@@ -170,9 +161,7 @@ class GraphData(object):
 			lambda: (i for i in self.data),
 			self.dataset_dtype,
 			self.dataset_size
-		)
-		.shuffle(len(self))
-		.batch(batch_size)
+		).shuffle(len(self)).batch(batch_size)
 
 
 
@@ -197,15 +186,8 @@ class GraphData(object):
 	def dataset_dtype(self):
 		return (
 			{
-				"person": {
-					"id": tf.int32,
-					"style": tf.float32
-				},
-				"product": {
-					"id": tf.int32,
-					"style": tf.float32
-				}, 
-				"review_score": tf.float32
+				"person_id": tf.int32,
+				"product_id": tf.int32,
 			}, 
 			tf.float32
 		)
@@ -214,15 +196,8 @@ class GraphData(object):
 	def dataset_size(self):
 		return (
 			{
-				"person": {
-					"id": tf.TensorShape([]),
-					"style": tf.TensorShape([6]),
-				},
-				"product": {
-					"id": tf.TensorShape([]),
-					"style": tf.TensorShape([6]),
-				}, 
-				"review_score": tf.TensorShape([]) 
+				"person_id": tf.TensorShape([]),
+				"product_id": tf.TensorShape([]),
 			}, 
 			tf.TensorShape([])
 		)

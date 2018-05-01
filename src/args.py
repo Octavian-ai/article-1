@@ -14,7 +14,7 @@ def get_args(args=None):
 	parser.add_argument('--disable-random-walks',	action='store_false',dest="use_random_walk")
 	
 	# Training
-	parser.add_argument('--max-steps', 				type=int,  default=20000)
+	parser.add_argument('--max-steps', 				type=int,  default=30000)
 	parser.add_argument('--runs', 					type=int,  default=1)
 	parser.add_argument('--batch-size', 			type=int,  default=32)
 	parser.add_argument('--lr',						type=float, default=0.103557887)
